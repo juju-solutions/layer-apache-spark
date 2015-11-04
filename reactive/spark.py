@@ -6,7 +6,7 @@ from charmhelpers.core import hookenv
 @when('bootstrapped')
 @when_not('spark.installed')
 def install_spark():
-    from charms.spark import Spark  # installed during bootstrap
+    from charms.spark import Spark  # in lib/charms; not available until after bootstrap
 
     spark = Spark()
     if spark.verify_resources():
@@ -30,7 +30,7 @@ def waiting(*args):
 
 @when('spark.installed', 'hadoop.yarn.ready', 'hadoop.hdfs.ready')
 def start_spark(*args):
-    from charms.spark import Spark  # installed during bootstrap
+    from charms.spark import Spark  # in lib/charms; not available until after bootstrap
 
     hookenv.status_set('maintenance', 'Setting up Apache Spark')
     spark = Spark()
@@ -44,7 +44,7 @@ def start_spark(*args):
 @when('spark.started')
 @when_not('hadoop.yarn.ready', 'hadoop.hdfs.ready')
 def stop_spark():
-    from charms.spark import Spark  # installed during bootstrap
+    from charms.spark import Spark  # in lib/charms; not available until after bootstrap
 
     hookenv.status_set('maintenance', 'Stopping Apache Spark')
     spark = Spark()
