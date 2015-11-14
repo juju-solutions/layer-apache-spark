@@ -11,6 +11,6 @@ optional_resources:
     hash: 204fc101f3c336692feeb1401225407c575a90d42af5d7ab83937b59c42a6af9
     hash_type: sha256
   spark-x86_64:
-    url: http://www.apache.org/dist/spark/spark-1.3.0/spark-1.3.0-bin-hadoop2.4.tgz
+    url: https://s3.amazonaws.com/jujubigdata/apache/x86_64/spark-1.3.0-bin-hadoop2.4-094b5116.tgz
     hash: 094b5116231b6fec8d3991492c06683126ce66a17f910d82780a1a9106b41547
     hash_type: sha256

@@ -4,7 +4,6 @@ from subprocess import CalledProcessError
 
 import jujuresources
 from charmhelpers.core import hookenv
-from charmhelpers.core import host
 from charmhelpers.core import unitdata
 from jujubigdata import utils
 
@@ -12,11 +11,9 @@ from jujubigdata import utils
 # Main Spark class for callbacks
 class Spark(object):
     def __init__(self, dist_config):
-        self.dist_config = utils.DistConfig(filename='dist.yaml',
-                                            required_keys=['vendor', 'packages',
-                                                           'dirs', 'ports'])
+        self.dist_config = dist_config
         self.resources = {
-            'spark': 'spark-%s' % host.cpu_arch(),
+            'spark': 'spark-%s' % utils.cpu_arch(),
         }
         self.verify_resources = utils.verify_resources(*self.resources.values())
 
@@ -31,12 +28,7 @@ class Spark(object):
         jujuresources.install(self.resources['spark'],
                               destination=self.dist_config.path('spark'),
                               skip_top_level=True)
-        self.setup_spark_config()
         self.install_demo()
-
-        # create hdfs storage space
-        utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p', '/user/ubuntu/directory')
-        utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop', '/user/ubuntu/directory')
 
         unitdata.kv().set('spark.installed', True)
         unitdata.kv().flush(True)
@@ -76,6 +68,10 @@ class Spark(object):
         utils.re_edit_in_place(spark_log4j, {
             r'log4j.rootCategory=INFO, console': 'log4j.rootCategory=ERROR, console',
         })
+
+        # create hdfs storage space
+        utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p', '/user/ubuntu/directory')
+        utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop', '/user/ubuntu/directory')
 
     def configure(self):
         '''
