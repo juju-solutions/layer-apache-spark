@@ -1,8 +1,6 @@
 options:
   output_dir: /home/ubuntu/resources
 resources:
-  pathlib:
-    pypi: path.py>=7.0
   jujubigdata:
     pypi: jujubigdata>=4.0.0,<5.0.0
 optional_resources:
