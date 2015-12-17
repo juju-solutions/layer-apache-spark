@@ -95,41 +95,129 @@ streaming jobs in a variety of ways:
 
 
 ## Configuration
-Spark has three modes of execution: local (standalone), yarn-client, and
-yarn-cluster. The default mode is `yarn-client` and can be changed by setting
-the `spark_execution_mode` config variable.
 
- * ** Local **
+ ### driver_memory
+ Amount of memory Spark will request for the Master. Specify gigabytes (e.g.
+ 1g) or megabytes (e.g. 1024m). If running in `local` or `standalone` mode, you
+ may also specify a percentage of total system memory (e.g. 50%).
 
- In local mode, Spark uses a Master daemon with one worker thread, which runs
- the executors.
+ ### executor_memory
+ Amount of memory Spark will request for each executor. Specify gigabytes (e.g.
+ 1g) or megabytes (e.g. 1024m). If running in `local` or `standalone` mode, you
+ may also specify a percentage of total system memory (e.g. 50%). Take care
+ when specifying percentages in local modes, as this value is for *each*
+ executor. Your Spark job will fail if, for example, you set this value > 50%
+ and attempt to run 2 or more executors.
 
- * ** YARN-client **
+ ### spark_bench_enabled
+ Install the SparkBench benchmarking suite. If `true` (the default), this charm
+ will download spark bench from the URL specified by `spark_bench_ppc64le`
+ or `spark_bench_x86_64`, depending on the unit's architecture.
 
- In yarn-client mode, the driver runs in the client process, and the application
- master is only used for requesting resources from YARN.
+ ### spark-execution-mode
+ Spark has four modes of execution: local, standalone, yarn-client, and
+ yarn-cluster. The default mode is `yarn-client` and can be changed by setting
+ the `spark_execution_mode` config variable.
 
- * ** YARN-cluster **
+  * ** Local **
 
- In yarn-cluster mode, the Spark driver runs inside an application master
- process which is managed by YARN on the cluster, and the client can go away
- after initiating the application.
+  In Local mode, Spark processes jobs locally without any cluster resources.
+  There are 3 ways to specify 'local' mode:
+
+   * `local`
+
+     Run Spark locally with one worker thread (i.e. no parallelism at all).
+
+   * `local[K]`
+
+     Run Spark locally with K worker threads (ideally, set this to the number
+     of cores on your machine).
+
+   * `local[*]`
+
+     Run Spark locally with as many worker threads as logical cores on your
+     machine.
+
+  * ** Standalone **
+
+  In `standalone` mode, Spark launches a Master and Worker daemon on the Spark
+  unit. This mode is useful for simulating a distributed cluster environment
+  without actually setting up a cluster.
+
+  * ** YARN-client **
+
+  In `yarn-client mode`, the driver runs in the client process, and the
+  application master is only used for requesting resources from YARN.
+
+  * ** YARN-cluster **
+
+  In `yarn-cluster mode`, the Spark driver runs inside an application master
+  process which is managed by YARN on the cluster, and the client can go away
+  after initiating the application.
 
 
-## Testing the deployment
+ ## Testing the deployment
 
-### Smoke test spark-submit
-SSH to the Spark unit and run the SparkPi test as follows:
+ ### Smoke test spark-submit
+ SSH to the Spark unit and run the SparkPi test as follows:
 
-    juju ssh spark/0
-    ~/sparkpi.sh
-    exit
+     juju ssh spark/0
+     ~/sparkpi.sh
+     exit
 
-### Verify Job History
-Verify the Job History server shows the previous spark-submit test by visiting http://{spark_unit_ip_address}:18080
+ ### Verify Job History
+ Verify the Job History server shows the previous spark-submit test by
+ exposing the service (`juju expose spark`) and visiting
+ http://{spark_unit_ip_address}:18080
 
 
-## Contact Information
+ ## Benchmarking
+
+ Run the [Spark Bench](https://github.com/SparkTC/spark-bench) benchmarking
+ suite to gauge the performance of your environment. Each enabled test is a
+ separate action and can be called as follows:
+
+     $ juju action do spark/0 pagerank
+     Action queued with id: 88de9367-45a8-4a4b-835b-7660f467a45e
+     $ juju action fetch --wait 0 88de9367-45a8-4a4b-835b-7660f467a45e
+     results:
+       meta:
+         composite:
+           direction: asc
+           units: secs
+           value: "77.939000"
+         raw: |
+           PageRank,2015-12-10-23:41:57,77.939000,71.888079,.922363,0,PageRank-MLlibConfig,,,,,10,12,,200000,4.0,1.3,0.15
+         start: 2015-12-10T23:41:34Z
+         stop: 2015-12-10T23:43:16Z
+       results:
+         duration:
+           direction: asc
+           units: secs
+           value: "77.939000"
+         throughput:
+           direction: desc
+           units: x/sec
+           value: ".922363"
+     status: completed
+     timing:
+       completed: 2015-12-10 23:43:59 +0000 UTC
+       enqueued: 2015-12-10 23:42:10 +0000 UTC
+       started: 2015-12-10 23:42:15 +0000 UTC
+
+ Valid action names at this time are:
+
+  * logisticregression
+  * matrixfactorization
+  * pagerank
+  * sql
+  * streaming
+  * svdplusplus
+  * svm
+  * trianglecount
+
+
+ ## Contact Information
 
 - <bigdata@lists.ubuntu.com>
 

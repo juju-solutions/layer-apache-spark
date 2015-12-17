@@ -7,6 +7,8 @@ description: |
   Learn more at http://spark.apache.org.
 tags: ["bigdata", "hadoop", "apache"]
 provides:
+  benchmark:
+    interface: benchmark
   spark:
     interface: spark
   hadoop:

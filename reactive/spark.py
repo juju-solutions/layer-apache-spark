@@ -22,18 +22,18 @@ from charmhelpers.core import hookenv
 #
 #   * hadoop.yarn.ready - This is set by the hadoop-plugin interface layer once
 #                         Yarn has reported that it is ready to run jobs.  The
-#                         prefix "hadoop"in this state is determined by the name of
+#                         prefix "hadoop" in this state is determined by the name of
 #                         the relationto the plugin charm in metadata.yaml.
 #
 #   * hadoop.hdfs.ready - This is set by the hadoop-plugin interface layer once
 #                         HDFS has reported that it is ready to store data.  The
-#                         prefix "hadoop"in this state is determined by the name
+#                         prefix "hadoop" in this state is determined by the name
 #                         of the relationto the plugin charm in metadata.yaml.
 #
 
 
 def dist_config():
-    from jujubigdata.utils import DistConfig  # no available until after bootstrap
+    from jujubigdata.utils import DistConfig  # not available until after bootstrap
     if not getattr(dist_config, 'value', None):
         dist_config.value = DistConfig(filename='dist.yaml',
                                        required_keys=['vendor', 'packages',
@@ -68,6 +68,8 @@ def install_spark(hadoop):
         dist.add_dirs()
         dist.add_packages()
         spark.install()
+        spark.setup_spark_config()
+        spark.install_demo()
         set_state('spark.installed')
 
 
@@ -78,7 +80,7 @@ def start_spark(hadoop):
 
     hookenv.status_set('maintenance', 'Setting up Apache Spark')
     spark = Spark(dist_config())
-    spark.setup_spark_config()
+
     spark.configure()
     spark.start()
     spark.open_ports()
