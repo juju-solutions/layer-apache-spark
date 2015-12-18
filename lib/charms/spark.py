@@ -184,7 +184,7 @@ class Spark(object):
         sb_dir = '/home/ubuntu/spark-bench'
         if install_sb:
             if not unitdata.kv().get('spark_bench.installed', False):
-                if host.cpu_arch() == 'ppc64le':
+                if utils.cpu_arch() == 'ppc64le':
                     sb_url = hookenv.config()['spark_bench_ppc64le']
                 else:
                     # TODO: may need more arch cases (go with x86 sb for now)
