@@ -11,6 +11,3 @@ provides:
     interface: benchmark
   spark:
     interface: spark
-  hadoop:
-    interface: hadoop-plugin
-    scope: container
