@@ -9,5 +9,5 @@ tags: ["bigdata", "hadoop", "apache"]
 provides:
   benchmark:
     interface: benchmark
-  spark:
+  client:
     interface: spark

@@ -73,3 +73,15 @@ def stop_spark():
     spark.close_ports()
     spark.stop()
     remove_state('spark.started')
+
+
+@when('spark.started', 'client.related')
+def client_present(client):
+    client.set_installed()
+
+
+@when('client.related')
+@when_not('spark.started')
+def client_should_stop(client):
+    client.clear_installed()
+
