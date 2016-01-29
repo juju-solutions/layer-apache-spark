@@ -1,1 +1,31 @@
-includes: ['layer:hadoop-base']
+includes: ['layer:hadoop-client', 'interface:spark']
+options:
+  hadoop-client:
+    packages:
+      - 'ipython'
+      - 'libgfortran3'
+      - 'scala'
+    dirs:
+      spark:
+        path: '/usr/lib/spark'
+      spark_conf:
+        path: '/etc/spark/conf'
+      spark_logs:
+        path: '/var/log/spark'
+        owner: 'ubuntu'
+        group: 'hadoop'
+      spark_work:
+        path: '/var/lib/spark/work'
+        owner: 'ubuntu'
+        group: 'hadoop'
+    ports:
+      # Ports that need to be exposed, overridden, or manually specified.
+      # Only expose ports serving a UI or external API (i.e., namenode and
+      # resourcemanager).  Communication among units within the cluster does
+      # not need ports to be explicitly opened.
+      spark-history:
+        port: 18080
+        exposed_on: 'spark'
+      spark-webui:
+        port: 8080
+        exposed_on: 'spark'
