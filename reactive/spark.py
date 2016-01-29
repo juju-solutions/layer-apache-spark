@@ -1,3 +1,4 @@
+# pylint: disable=unused-argument
 from charms.reactive import when, when_not
 from charms.reactive import set_state, remove_state
 from charmhelpers.core import hookenv
@@ -85,3 +86,17 @@ def client_present(client):
 def client_should_stop(client):
     client.clear_installed()
 
+
+@when('benchmark.related')
+def register_benchmarks(benchmark):
+    benchmarks = ['sparkpi']
+    if hookenv.config('spark_bench_enabled'):
+        benchmarks.extend(['logisticregression',
+                           'matrixfactorization',
+                           'pagerank',
+                           'sql',
+                           'streaming',
+                           'svdplusplus',
+                           'svm',
+                           'trianglecount'])
+    benchmark.register(benchmarks)

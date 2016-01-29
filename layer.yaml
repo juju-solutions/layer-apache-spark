@@ -1,4 +1,4 @@
-includes: ['layer:hadoop-client', 'interface:spark']
+includes: ['layer:hadoop-client', 'interface:spark', 'interface:benchmark']
 options:
   hadoop-client:
     packages:
