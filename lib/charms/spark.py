@@ -95,10 +95,10 @@ class Spark(object):
         Path(demo_target).chmod(0o755)
         Path(demo_target).chown('ubuntu', 'hadoop')
 
-    def is_spark_local():
+    def is_spark_local(self):
         # spark is local if our execution mode is 'local*' or 'standalone'
         mode = hookenv.config()['spark_execution_mode']
-        if mode.startswith('local') or mode == 'standalone':
+        if mode.startswith('local'):
             return True
         else:
             return False
