@@ -4,6 +4,7 @@ from charms.reactive import set_state, remove_state
 from charmhelpers.core import hookenv
 from charms.spark import Spark
 from charms.hadoop import get_dist_config
+from charms.reactive.helpers import data_changed
 
 
 # This file contains the reactive handlers for this charm.  These handlers
@@ -63,6 +64,20 @@ def start_spark(hadoop):
     spark.start()
     spark.open_ports()
     set_state('spark.started')
+    hookenv.status_set('active', 'Ready')
+
+
+@when('spark.installed', 'hadoop.ready', 'spark.started')
+def reconfigure_spark(hadoop):    
+    config = hookenv.config()
+    if not data_changed('configuration', config):
+        return
+
+    hookenv.status_set('maintenance', 'Configuring Apache Spark')
+    spark = Spark(get_dist_config())
+    spark.stop()
+    spark.configure()
+    spark.start()
     hookenv.status_set('active', 'Ready')
 
 
