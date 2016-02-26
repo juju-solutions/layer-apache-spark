@@ -96,12 +96,14 @@ streaming jobs in a variety of ways:
 
 ## Configuration
 
- ### driver_memory
+### driver_memory
+ 
  Amount of memory Spark will request for the Master. Specify gigabytes (e.g.
  1g) or megabytes (e.g. 1024m). If running in `local` or `standalone` mode, you
  may also specify a percentage of total system memory (e.g. 50%).
 
- ### executor_memory
+### executor_memory
+ 
  Amount of memory Spark will request for each executor. Specify gigabytes (e.g.
  1g) or megabytes (e.g. 1024m). If running in `local` or `standalone` mode, you
  may also specify a percentage of total system memory (e.g. 50%). Take care
@@ -109,17 +111,19 @@ streaming jobs in a variety of ways:
  executor. Your Spark job will fail if, for example, you set this value > 50%
  and attempt to run 2 or more executors.
 
- ### spark_bench_enabled
+### spark_bench_enabled
+ 
  Install the SparkBench benchmarking suite. If `true` (the default), this charm
  will download spark bench from the URL specified by `spark_bench_ppc64le`
  or `spark_bench_x86_64`, depending on the unit's architecture.
 
- ### spark-execution-mode
+### spark-execution-mode
+ 
  Spark has four modes of execution: local, standalone, yarn-client, and
  yarn-cluster. The default mode is `yarn-client` and can be changed by setting
  the `spark_execution_mode` config variable.
 
-  * ** Local **
+  * **Local**
 
   In Local mode, Spark processes jobs locally without any cluster resources.
   There are 3 ways to specify 'local' mode:
@@ -138,40 +142,42 @@ streaming jobs in a variety of ways:
      Run Spark locally with as many worker threads as logical cores on your
      machine.
 
-  * ** Standalone **
+  * **Standalone**
 
   In `standalone` mode, Spark launches a Master and Worker daemon on the Spark
   unit. This mode is useful for simulating a distributed cluster environment
   without actually setting up a cluster.
 
-  * ** YARN-client **
+  * **YARN-client**
 
   In `yarn-client mode`, the driver runs in the client process, and the
   application master is only used for requesting resources from YARN.
 
-  * ** YARN-cluster **
+  * **YARN-cluster**
 
   In `yarn-cluster mode`, the Spark driver runs inside an application master
   process which is managed by YARN on the cluster, and the client can go away
   after initiating the application.
 
 
- ## Testing the deployment
+## Testing the deployment
 
- ### Smoke test spark-submit
+### Smoke test spark-submit
+ 
  SSH to the Spark unit and run the SparkPi test as follows:
 
      juju ssh spark/0
      ~/sparkpi.sh
      exit
 
- ### Verify Job History
+### Verify Job History
+ 
  Verify the Job History server shows the previous spark-submit test by
  exposing the service (`juju expose spark`) and visiting
  http://{spark_unit_ip_address}:18080
 
 
- ## Benchmarking
+## Benchmarking
 
  Run the [Spark Bench](https://github.com/SparkTC/spark-bench) benchmarking
  suite to gauge the performance of your environment. Each enabled test is a
@@ -217,7 +223,7 @@ streaming jobs in a variety of ways:
   * trianglecount
 
 
- ## Contact Information
+## Contact Information
 
 - <bigdata@lists.ubuntu.com>
 
