@@ -91,15 +91,15 @@ def stop_spark():
     remove_state('spark.started')
 
 
-@when('spark.started', 'client.related')
+@when('spark.started', 'client.joined')
 def client_present(client):
-    client.set_installed()
+    client.set_spark_started()
 
 
-@when('client.related')
+@when('client.joined')
 @when_not('spark.started')
 def client_should_stop(client):
-    client.clear_installed()
+    client.clear_spark_started()
 
 
 @when('benchmark.related')
