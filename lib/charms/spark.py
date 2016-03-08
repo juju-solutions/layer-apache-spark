@@ -168,7 +168,7 @@ class Spark(object):
             r'.*spark.master *.*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled *.*': 'spark.eventLog.enabled true',
             r'.*spark.eventLog.dir *.*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
-            })
+        })
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
         local_ip = utils.resolve_private_address(hookenv.unit_private_ip())
         utils.re_edit_in_place(spark_env, {
@@ -177,7 +177,7 @@ class Spark(object):
             r'.*SPARK_LOG_DIR.*': 'SPARK_LOG_DIR={}'.format(self.dist_config.path('spark_logs')),
             r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(local_ip),
             r'.*SPARK_WORKER_DIR.*': 'SPARK_WORKER_DIR={}'.format(self.dist_config.path('spark_work')),
-            })
+        })
 
         # manage SparkBench
         install_sb = hookenv.config()['spark_bench_enabled']
@@ -206,7 +206,7 @@ class Spark(object):
                 utils.re_edit_in_place(sb_env, {
                     r'^SPARK_DRIVER_MEMORY.*': '# SPARK_DRIVER_MEMORY (use value from environment)',
                     r'^SPARK_EXECUTOR_MEMORY.*': '# SPARK_EXECUTOR_MEMORY (use value from environment)',
-                    })
+                })
 
                 unitdata.kv().set('spark_bench.installed', True)
                 unitdata.kv().flush(True)
