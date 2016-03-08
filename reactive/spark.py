@@ -68,7 +68,7 @@ def start_spark(hadoop):
 
 
 @when('spark.installed', 'hadoop.ready', 'spark.started')
-def reconfigure_spark(hadoop):    
+def reconfigure_spark(hadoop):
     config = hookenv.config()
     if not data_changed('configuration', config):
         return
