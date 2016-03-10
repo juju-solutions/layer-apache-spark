@@ -102,7 +102,7 @@ def client_should_stop(client):
     client.clear_spark_started()
 
 
-@when('benchmark.related')
+@when('benchmark.joined')
 def register_benchmarks(benchmark):
     benchmarks = ['sparkpi']
     if hookenv.config('spark_bench_enabled'):
