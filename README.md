@@ -179,9 +179,19 @@ streaming jobs in a variety of ways:
 
 ## Benchmarking
 
- Run the [Spark Bench](https://github.com/SparkTC/spark-bench) benchmarking
- suite to gauge the performance of your environment. Each enabled test is a
- separate action and can be called as follows:
+ This charm provides several benchmarks, including the
+ [Spark Bench](https://github.com/SparkTC/spark-bench) benchmarking
+ suite (if enabled), to gauge the performance of your environment.
+
+ The easiest way to run the benchmarks on this service is to relate it to the
+ [Benchmark GUI][].  You will likely also want to relate it to the
+ [Benchmark Collector][] to have machine-level information collected during the
+ benchmark, for a more complete picture of how the machine performed.
+
+ [Benchmark GUI]: https://jujucharms.com/benchmark-gui/
+ [Benchmark Collector]: https://jujucharms.com/benchmark-collector/
+
+ However, each benchmark is also an action that can be called manually:
 
      $ juju action do spark/0 pagerank
      Action queued with id: 88de9367-45a8-4a4b-835b-7660f467a45e
@@ -221,6 +231,7 @@ streaming jobs in a variety of ways:
   * svdplusplus
   * svm
   * trianglecount
+  * sparkpi
 
 
 ## Contact Information
