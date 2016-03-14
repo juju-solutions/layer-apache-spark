@@ -13,7 +13,7 @@ from charms.layer.hadoop_client import get_dist_config
 #   * spark.installed - This is set by this charm in the code below.
 #
 #   * hadoop.ready - This is set by the hadoop-plugin interface layer once
-#                    Yarn & HDFS have reported that ready.  Theprefix "hadoop"
+#                    Yarn & HDFS have reported that ready.  The prefix "hadoop"
 #                    in this state is determined by the name of the relation
 #                    to the plugin charm in metadata.yaml.
 #
