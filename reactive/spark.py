@@ -2,9 +2,8 @@
 from charms.reactive import when, when_not
 from charms.reactive import set_state, remove_state
 from charmhelpers.core import hookenv
-from charms.spark import Spark
-from charms.hadoop import get_dist_config
-from charms.reactive.helpers import data_changed
+from charms.layer.apache_spark import Spark
+from charms.layer.hadoop_client import get_dist_config
 
 
 # This file contains the reactive handlers for this charm.  These handlers
@@ -13,35 +12,17 @@ from charms.reactive.helpers import data_changed
 #
 #   * spark.installed - This is set by this charm in the code below.
 #
-#   * hadoop.related - This is set by the hadoop-plugin interface layer once
-#                        the plugin subordinate charm is connected to both this
-#                        charm and the Hadoop core cluster.  The prefix "hadoop"
-#                        in this state is determined by the name of the relation
-#                        to the plugin charm in metadata.yaml.
-#                        (https://github.com/juju-solutions/interface-hadoop-plugin)
-#
 #   * hadoop.ready - This is set by the hadoop-plugin interface layer once
-#                         Yarn & HDFS have reported that ready.  The
-#                         prefix "hadoop" in this state is determined by the name of
-#                         the relationto the plugin charm in metadata.yaml.
+#                    Yarn & HDFS have reported that ready.  Theprefix "hadoop"
+#                    in this state is determined by the name of the relation
+#                    to the plugin charm in metadata.yaml.
 #
-
-@when_not('hadoop.related')
-def report_blocked():
-    hookenv.status_set('blocked', 'Waiting for relation to Hadoop Plugin')
-
-
-@when('hadoop.related')
-@when_not('hadoop.ready')
-def report_waiting(hadoop):
-    hookenv.status_set('waiting', 'Waiting for Hadoop to become ready')
 
 
 # TODO: support standalone mode when Yarn not connected
 @when('hadoop.ready')
 @when_not('spark.installed')
 def install_spark(hadoop):
-
     dist = get_dist_config()
     spark = Spark(dist)
     if spark.verify_resources():
@@ -59,7 +40,6 @@ def install_spark(hadoop):
 def start_spark(hadoop):
     hookenv.status_set('maintenance', 'Setting up Apache Spark')
     spark = Spark(get_dist_config())
-
     spark.configure()
     spark.start()
     spark.open_ports()
@@ -67,12 +47,8 @@ def start_spark(hadoop):
     hookenv.status_set('active', 'Ready')
 
 
-@when('spark.installed', 'hadoop.ready', 'spark.started')
-def reconfigure_spark(hadoop):
-    config = hookenv.config()
-    if not data_changed('configuration', config):
-        return
-
+@when('spark.started', 'config.changed')
+def reconfigure_spark():
     hookenv.status_set('maintenance', 'Configuring Apache Spark')
     spark = Spark(get_dist_config())
     spark.stop()
