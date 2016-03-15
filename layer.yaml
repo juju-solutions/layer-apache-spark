@@ -1,3 +1,4 @@
+repo: git@github.com:juju-solutions/layer-apache-spark.git
 includes: ['layer:hadoop-client', 'interface:spark', 'interface:benchmark']
 options:
   hadoop-client:
