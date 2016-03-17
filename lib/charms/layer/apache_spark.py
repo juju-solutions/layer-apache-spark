@@ -162,23 +162,30 @@ class Spark(object):
             env['SPARK_HOME'] = spark_home
             env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
 
-        # update spark config
+        # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+        hadoop_classpath = utils.run_as('hdfs', 'hadoop', 'classpath', capture_output=True)
         utils.re_edit_in_place(spark_conf, {
-            r'.*spark.master *.*': 'spark.master {}'.format(self.get_master()),
-            r'.*spark.eventLog.enabled *.*': 'spark.eventLog.enabled true',
-            r'.*spark.eventLog.dir *.*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
+            r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
+            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
+            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
+            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_classpath),
         })
+        # NB: HACKITY HACK HACK! extraClassPath doesnt exist in
+        # spark-defaults.conf, so it'll never match on initial config above.
+        # Append it now with the hope that one day, our children will forgive us.
+        with open(spark_conf, "a") as f:
+            f.write('spark.driver.extraClassPath {}'.format(hadoop_classpath))
+
+        # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
         local_ip = utils.resolve_private_address(hookenv.unit_private_ip())
-        hadoop_classpath = utils.run_as('hdfs', 'hadoop', 'classpath', capture_output=True)
         utils.re_edit_in_place(spark_env, {
             r'.*SPARK_DRIVER_MEMORY.*': 'SPARK_DRIVER_MEMORY={}'.format(driver_mem),
             r'.*SPARK_EXECUTOR_MEMORY.*': 'SPARK_EXECUTOR_MEMORY={}'.format(executor_mem),
             r'.*SPARK_LOG_DIR.*': 'SPARK_LOG_DIR={}'.format(self.dist_config.path('spark_logs')),
             r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(local_ip),
             r'.*SPARK_WORKER_DIR.*': 'SPARK_WORKER_DIR={}'.format(self.dist_config.path('spark_work')),
-            r'.*SPARK_CLASSPATH.*': 'SPARK_CLASSPATH={}'.format(hadoop_classpath),
         })
 
         # manage SparkBench
