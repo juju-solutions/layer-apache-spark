@@ -164,18 +164,14 @@ class Spark(object):
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-        hadoop_classpath = utils.run_as('hdfs', 'hadoop', 'classpath', capture_output=True)
+        etc_env = utils.read_etc_env()
+        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
             r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
-            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_classpath),
-        })
-        # NB: HACKITY HACK HACK! extraClassPath doesnt exist in
-        # spark-defaults.conf, so it'll never match on initial config above.
-        # Append it now with the hope that one day, our children will forgive us.
-        with open(spark_conf, "a") as f:
-            f.write('spark.driver.extraClassPath {}'.format(hadoop_classpath))
+            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
+        }, append_non_matches=True)
 
         # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
