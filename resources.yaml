@@ -1,11 +1,7 @@
 options:
   output_dir: /home/ubuntu/resources
 optional_resources:
-  spark-ppc64le:
-    url: https://s3.amazonaws.com/jujubigdata/apache/ppc64le/spark-1.4.1-IBM-haddop-2.7.1-ppc64le-570b7b9a.tar.gz
-    hash: 570b7b9a275eec477efdb8bc063477146139ac4030a62612b2ab97e90f078131
-    hash_type: sha256
-  spark-x86_64:
-    url: https://s3.amazonaws.com/jujubigdata/apache/x86_64/spark-1.4.1-bin-hadoop2.6-x86_64-9cde9534.tgz
-    hash: 9cde95349cccfeb99643d2dadb63f8e88ac355e0038aae7d5029142ce94ae370
-    hash_type: sha256
+  spark-noarch:
+    url: https://s3.amazonaws.com/jujubigdata/apache/noarch/spark-1.6.1-bin-hadoop2.6-49154d13.tgz
+    hash: 49154d13d5b216c71556f8f5939b13f4a2a29623d02c49dc1b2f21228352f65defe831f9cfaf633ba7a0bd53833522ba51eb778654c8e49434439afb5265246f
+    hash_type: sha512
