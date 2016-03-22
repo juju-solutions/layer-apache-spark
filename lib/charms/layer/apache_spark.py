@@ -15,7 +15,7 @@ class Spark(object):
     def __init__(self, dist_config):
         self.dist_config = dist_config
         self.resources = {
-            'spark': 'spark-%s' % utils.cpu_arch(),
+            'spark': 'spark-noarch',
         }
         self.verify_resources = utils.verify_resources(*self.resources.values())
 
