@@ -1,6 +1,6 @@
 # pylint: disable=unused-argument
 from charms.reactive import when, when_not
-from charms.reactive import set_state, remove_state
+from charms.reactive import set_state, remove_state, is_state
 from charmhelpers.core import hookenv
 from charms.layer.apache_spark import Spark
 from charms.layer.hadoop_client import get_dist_config
@@ -40,7 +40,7 @@ def start_spark():
     spark.start()
     spark.open_ports()
     set_state('spark.started')
-    hookenv.status_set('active', 'Ready')
+    report_status()
 
 
 @when('spark.started', 'hadoop.ready')
@@ -51,8 +51,18 @@ def configure_yarn_mode(hadoop):
     spark.stop()
     spark.configure_yarn_mode()
     spark.start()
-    hookenv.status_set('active', 'Ready')
     set_state('yarn.configured')
+    report_status()
+
+
+def report_status():
+    mode = hookenv.config()['spark_execution_mode']
+    if (not is_state('yarn.configured')) and mode.startswith('yarn'):
+        hookenv.status_set('blocked',
+                           'Yarn execution mode not available')
+        return
+
+    hookenv.status_set('active', 'Ready ({})'.format(mode))
 
 
 @when('spark.started', 'config.changed')
@@ -62,7 +72,7 @@ def reconfigure_spark():
     spark.stop()
     spark.configure()
     spark.start()
-    hookenv.status_set('active', 'Ready')
+    report_status()
 
 
 @when('spark.started', 'yarn.configured')
@@ -71,10 +81,10 @@ def disable_yarn():
     hookenv.status_set('maintenance', 'Disconnecting Apache Spark from YARN')
     spark = Spark(get_dist_config())
     spark.stop()
-    spark.disable_yarn_mode
+    spark.disable_yarn_mode()
     spark.start()
-    hookenv.status_set('active', 'Ready')
     remove_state('yarn.configured')
+    report_status()
 
 
 @when('spark.started', 'client.joined')

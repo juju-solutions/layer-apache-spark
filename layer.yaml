@@ -36,3 +36,4 @@ options:
       spark-webui:
         port: 8080
         exposed_on: 'spark'
+    silent: True
