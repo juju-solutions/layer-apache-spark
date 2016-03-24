@@ -19,25 +19,21 @@ from charms.layer.hadoop_client import get_dist_config
 #
 
 
-# TODO: support standalone mode when Yarn not connected
-@when('hadoop.ready')
 @when_not('spark.installed')
-def install_spark(hadoop):
+def install_spark():
     dist = get_dist_config()
     spark = Spark(dist)
     if spark.verify_resources():
         hookenv.status_set('maintenance', 'Installing Apache Spark')
-        dist.add_dirs()
-        dist.add_packages()
         spark.install()
         spark.setup_spark_config()
         spark.install_demo()
         set_state('spark.installed')
 
 
-@when('spark.installed', 'hadoop.ready')
+@when('spark.installed')
 @when_not('spark.started')
-def start_spark(hadoop):
+def start_spark():
     hookenv.status_set('maintenance', 'Setting up Apache Spark')
     spark = Spark(get_dist_config())
     spark.configure()
@@ -45,6 +41,18 @@ def start_spark(hadoop):
     spark.open_ports()
     set_state('spark.started')
     hookenv.status_set('active', 'Ready')
+
+
+@when('spark.started', 'hadoop.ready')
+@when_not('yarn.configured')
+def configure_yarn_mode(hadoop):
+    hookenv.status_set('maintenance', 'Setting up Apache Spark for YARN')
+    spark = Spark(get_dist_config())
+    spark.stop()
+    spark.configure_yarn_mode()
+    spark.start()
+    hookenv.status_set('active', 'Ready')
+    set_state('yarn.configured')
 
 
 @when('spark.started', 'config.changed')
@@ -57,14 +65,16 @@ def reconfigure_spark():
     hookenv.status_set('active', 'Ready')
 
 
-@when('spark.started')
-@when_not('hadoop.ready')
-def stop_spark():
-    hookenv.status_set('maintenance', 'Stopping Apache Spark')
+@when('spark.started', 'yarn.configured')
+@when_not('hadoop.ready', )
+def disable_yarn():
+    hookenv.status_set('maintenance', 'Disconnecting Apache Spark from YARN')
     spark = Spark(get_dist_config())
-    spark.close_ports()
     spark.stop()
-    remove_state('spark.started')
+    spark.disable_yarn_mode
+    spark.start()
+    hookenv.status_set('active', 'Ready')
+    remove_state('yarn.configured')
 
 
 @when('spark.started', 'client.joined')

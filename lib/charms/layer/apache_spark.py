@@ -29,10 +29,18 @@ class Spark(object):
                               destination=self.dist_config.path('spark'),
                               skip_top_level=True)
 
+        self.dist_config.add_users()
+        self.dist_config.add_dirs()
+        self.dist_config.add_packages()
+
         # allow ubuntu user to ssh to itself so spark can ssh to its worker
         # in local/standalone modes
         utils.install_ssh_key('ubuntu', utils.get_ssh_key('ubuntu'))
 
+        unitdata.kv().set('spark.installed', True)
+        unitdata.kv().flush(True)
+
+    def configure_yarn_mode(self):
         # put the spark jar in hdfs
         spark_assembly_jar = glob('{}/lib/spark-assembly-*.jar'.format(
                                   self.dist_config.path('spark')))[0]
@@ -43,6 +51,9 @@ class Spark(object):
                          '/user/ubuntu/share/lib/spark-assembly.jar')
         except CalledProcessError:
             print ("File exists")
+
+        with utils.environment_edit_in_place('/etc/environment') as env:
+            env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
 
         # create hdfs storage space for history server
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
@@ -56,7 +67,37 @@ class Spark(object):
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
                      '/user/ubuntu/spark-bench')
 
-        unitdata.kv().set('spark.installed', True)
+        # update spark-defaults
+        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+        etc_env = utils.read_etc_env()
+        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        utils.re_edit_in_place(spark_conf, {
+            r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
+            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
+            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
+            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
+        }, append_non_matches=True)
+
+        unitdata.kv().set('hdfs.available', True)
+        unitdata.kv().flush(True)
+
+    def disable_yarn_mode(self):
+        # put the spark jar in hdfs
+        with utils.environment_edit_in_place('/etc/environment') as env:
+            env['SPARK_JAR'] = glob('{}/lib/spark-assembly-*.jar'.format(
+                                  self.dist_config.path('spark')))[0]
+
+        # update spark-defaults
+        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+        etc_env = utils.read_etc_env()
+        utils.re_edit_in_place(spark_conf, {
+            r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
+            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
+            r'.*spark.eventLog.dir .*': '# spark.eventLog.dir hdfs:///user/ubuntu/directory',
+            r'.*spark.driver.extraClassPath .*': '# spark.driver.extraClassPath none',
+        }, append_non_matches=True)
+
+        unitdata.kv().set('hdfs.available', False)
         unitdata.kv().flush(True)
 
     def setup_spark_config(self):
@@ -160,17 +201,13 @@ class Spark(object):
             env['SPARK_DRIVER_MEMORY'] = driver_mem
             env['SPARK_EXECUTOR_MEMORY'] = executor_mem
             env['SPARK_HOME'] = spark_home
-            env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         etc_env = utils.read_etc_env()
-        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
-            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
-            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
         }, append_non_matches=True)
 
         # update spark-env
