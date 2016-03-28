@@ -11,3 +11,7 @@ provides:
     interface: benchmark
   client:
     interface: spark
+peers:
+  sparkpeers:
+    interface: spark-quorum
+

@@ -4,7 +4,7 @@ from charms.reactive import set_state, remove_state, is_state
 from charmhelpers.core import hookenv
 from charms.layer.apache_spark import Spark
 from charms.layer.hadoop_client import get_dist_config
-
+from charms.reactive.helpers import data_changed
 
 # This file contains the reactive handlers for this charm.  These handlers
 # determine when the various relations and other conditions are met so that
@@ -85,6 +85,32 @@ def disable_yarn():
     spark.start()
     remove_state('yarn.configured')
     report_status()
+
+
+@when('spark.installed', 'sparkpeers.joined')
+def peers_update(sprkpeer):
+    nodes = sprkpeer.get_nodes()
+    nodes.append((hookenv.local_unit(), hookenv.unit_private_ip()))
+    update_peers_config(nodes)
+
+
+@when('spark.installed')
+@when_not('sparkpeers.joined')
+def no_peers_update():
+    nodes = [(hookenv.local_unit(), hookenv.unit_private_ip())]
+    update_peers_config(nodes)
+
+
+def update_peers_config(nodes):
+    nodes.sort()
+    if data_changed('available.peers', nodes):
+        spark = Spark(get_dist_config())
+        if spark.update_peers(nodes):
+            hookenv.status_set('maintenance', 'Updating Apache Spark config')
+            spark.stop()
+            spark.configure()
+            spark.start()
+            report_status()
 
 
 @when('spark.started', 'client.joined')

@@ -144,6 +144,38 @@ class Spark(object):
         else:
             return False
 
+    def update_peers(self, node_list):
+        '''
+        This method wtill return True if the master peer was updated.
+        False otherwise.
+        '''
+        old_master = unitdata.kv().get('spark_master.ip', 'not_set')
+        master_ip = ''
+        if not node_list:
+            hookenv.log("No peers yet. Acting as master.")
+            master_ip = utils.resolve_private_address(hookenv.unit_private_ip())
+            unitdata.kv().set('spark_master.ip', master_ip)
+        else:
+            # Use as master the node with minimum Id
+            # Any ordering is fine here. Lexicografical ordering too.
+            node_list.sort()
+            master_ip = utils.resolve_private_address(node_list[0][1])
+            unitdata.kv().set('spark_master.ip', master_ip)
+            hookenv.log("Updating master ip to {}.".format(master_ip))
+
+        unitdata.kv().set('spark_master.is_set', True)
+        unitdata.kv().flush(True)
+        if (old_master != master_ip):
+            return True
+        else:
+            return False
+
+    def get_master_ip(self):
+        if not unitdata.kv().get('spark_master.is_set', False):
+            self.update_peers([])
+
+        return unitdata.kv().get('spark_master.ip')
+
     # translate our execution_mode into the appropriate --master value
     def get_master(self):
         mode = hookenv.config()['spark_execution_mode']
@@ -151,8 +183,8 @@ class Spark(object):
         if mode.startswith('local') or mode == 'yarn-cluster':
             master = mode
         elif mode == 'standalone':
-            local_ip = utils.resolve_private_address(hookenv.unit_private_ip())
-            master = 'spark://{}:7077'.format(local_ip)
+            master_ip = self.get_master_ip()
+            master = 'spark://{}:7077'.format(master_ip)
         elif mode.startswith('yarn'):
             master = 'yarn-client'
         return master
@@ -212,12 +244,12 @@ class Spark(object):
 
         # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
-        local_ip = utils.resolve_private_address(hookenv.unit_private_ip())
+        master_ip = self.get_master_ip()
         utils.re_edit_in_place(spark_env, {
             r'.*SPARK_DRIVER_MEMORY.*': 'SPARK_DRIVER_MEMORY={}'.format(driver_mem),
             r'.*SPARK_EXECUTOR_MEMORY.*': 'SPARK_EXECUTOR_MEMORY={}'.format(executor_mem),
             r'.*SPARK_LOG_DIR.*': 'SPARK_LOG_DIR={}'.format(self.dist_config.path('spark_logs')),
-            r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(local_ip),
+            r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(master_ip),
             r'.*SPARK_WORKER_DIR.*': 'SPARK_WORKER_DIR={}'.format(self.dist_config.path('spark_work')),
         })
 
@@ -270,7 +302,11 @@ class Spark(object):
         # stop services (if they're running) to pick up any config change
         self.stop()
         # always start the history server, start master/worker if we're standalone
-        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), 'hdfs:///user/ubuntu/directory')
+        history_server_out = '/var/log/spark'
+        if unitdata.kv().get('hdfs.available', False):
+            history_server_out = 'hdfs:///user/ubuntu/directory'
+
+        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), history_server_out)
         if hookenv.config()['spark_execution_mode'] == 'standalone':
             utils.run_as('ubuntu', '{}/sbin/start-master.sh'.format(spark_home))
             utils.run_as('ubuntu', '{}/sbin/start-slave.sh'.format(spark_home), self.get_master())
