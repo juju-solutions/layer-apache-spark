@@ -6,7 +6,7 @@ if ! charms.reactive is_state 'spark.started'; then
     exit
 fi
 
-NUM_PARTITIONS=`action-get partitions`
+NUM_PARTITIONS=10
 
 # create dir to store results
 RUN=`date +%s`
@@ -15,7 +15,6 @@ RESULT_LOG=${RESULT_DIR}/${RUN}.log
 mkdir -p ${RESULT_DIR}
 chown -R ubuntu:ubuntu ${RESULT_DIR}
 
-benchmark-start
 START=`date +%s`
 # NB: Escaped vars in the block below (e.g., \${MASTER}) come from
 # /etc/environment while non-escaped vars (e.g., ${NUM_PARTITIONS}) are
@@ -27,8 +26,10 @@ spark-submit --master \${MASTER} --class org.apache.spark.examples.SparkPi \
   /usr/lib/spark/lib/spark-examples-*.jar ${NUM_PARTITIONS} &> ${RESULT_LOG}
 EOF
 STOP=`date +%s`
-benchmark-finish
 
 DURATION=`expr $STOP - $START`
-benchmark-composite "${DURATION}" 'secs' 'asc'
-benchmark-raw ${RESULT_LOG}
+
+if ! grep -q 'Pi is roughly 3.' ${RESULT_LOG}; then
+    action-fail 'smoke-test failed'
+    action-set log="$(cat ${RESULT_LOG})"
+fi

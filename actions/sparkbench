@@ -1,6 +1,11 @@
 #!/bin/bash
 set -ex
 
+if ! charms.reactive is_state 'spark.started'; then
+    action-fail 'Spark not yet ready'
+    exit
+fi
+
 # Do not call this script directly. Call it via one of the symlinks. The
 # symlink name determines the benchmark to run.
 BENCHMARK=`basename $0`
