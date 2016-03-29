@@ -100,6 +100,33 @@ class Spark(object):
         unitdata.kv().set('hdfs.available', False)
         unitdata.kv().flush(True)
 
+    def configure_ha(self, zk_units):
+        zks = []
+        for unit in zk_units:
+            ip = utils.resolve_private_address(unit['host'])
+            zks.append("%s:%s" % (ip, unit['port']))
+
+        zk_connect = ",".join(zks)
+
+        daemon_opts = ('-Dspark.deploy.recoveryMode=ZOOKEEPER '
+                      '-Dspark.deploy.zookeeper.url={}'.format(zk_connect))
+
+        spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
+        utils.re_edit_in_place(spark_env, {
+            r'.*SPARK_DAEMON_JAVA_OPTS.*': 'SPARK_DAEMON_JAVA_OPTS=\"{}\"'.format(daemon_opts),
+            r'.*SPARK_MASTER_IP.*': '# SPARK_MASTER_IP',
+        })
+        unitdata.kv().set('zookeepers.available', True)
+        unitdata.kv().flush(True)
+
+    def disable_ha(self):
+        spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
+        utils.re_edit_in_place(spark_env, {
+            r'.*SPARK_DAEMON_JAVA_OPTS.*': '# SPARK_DAEMON_JAVA_OPTS',
+        })
+        unitdata.kv().set('zookeepers.available', False)
+        unitdata.kv().flush(True)
+
     def setup_spark_config(self):
         '''
         copy the default configuration files to spark_conf property
@@ -154,6 +181,8 @@ class Spark(object):
         if not node_list:
             hookenv.log("No peers yet. Acting as master.")
             master_ip = utils.resolve_private_address(hookenv.unit_private_ip())
+            nodes = [(hookenv.local_unit(), master_ip)]
+            unitdata.kv().set('spark_all_master.ips', nodes)
             unitdata.kv().set('spark_master.ip', master_ip)
         else:
             # Use as master the node with minimum Id
@@ -161,11 +190,14 @@ class Spark(object):
             node_list.sort()
             master_ip = utils.resolve_private_address(node_list[0][1])
             unitdata.kv().set('spark_master.ip', master_ip)
+            unitdata.kv().set('spark_all_master.ips', node_list)
             hookenv.log("Updating master ip to {}.".format(master_ip))
 
         unitdata.kv().set('spark_master.is_set', True)
         unitdata.kv().flush(True)
-        if (old_master != master_ip):
+        # Incase of an HA setup adding peers must be treated as a potential
+        # mastr change
+        if (old_master != master_ip) or unitdata.kv().get('zookeepers.available', False):
             return True
         else:
             return False
@@ -176,13 +208,27 @@ class Spark(object):
 
         return unitdata.kv().get('spark_master.ip')
 
+    def get_all_master_ips(self):
+        if not unitdata.kv().get('spark_master.is_set', False):
+            self.update_peers([])
+
+        return [p[1] for p in unitdata.kv().get('spark_all_master.ips')]
+
     # translate our execution_mode into the appropriate --master value
     def get_master(self):
         mode = hookenv.config()['spark_execution_mode']
+        zks = unitdata.kv().get('zookeepers.available', False)
         master = None
         if mode.startswith('local') or mode == 'yarn-cluster':
             master = mode
-        elif mode == 'standalone':
+        elif mode == 'standalone' and zks:
+            master_ips = self.get_all_master_ips()
+            nodes = []
+            for ip in master_ips:
+                nodes.append('{}:7077'.format(ip))
+            nodes_str = ','.join(nodes)
+            master = 'spark://{}'.format(nodes_str)
+        elif mode == 'standalone' and (not zks):
             master_ip = self.get_master_ip()
             master = 'spark://{}:7077'.format(master_ip)
         elif mode.startswith('yarn'):
@@ -244,14 +290,19 @@ class Spark(object):
 
         # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
-        master_ip = self.get_master_ip()
         utils.re_edit_in_place(spark_env, {
             r'.*SPARK_DRIVER_MEMORY.*': 'SPARK_DRIVER_MEMORY={}'.format(driver_mem),
             r'.*SPARK_EXECUTOR_MEMORY.*': 'SPARK_EXECUTOR_MEMORY={}'.format(executor_mem),
             r'.*SPARK_LOG_DIR.*': 'SPARK_LOG_DIR={}'.format(self.dist_config.path('spark_logs')),
-            r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(master_ip),
             r'.*SPARK_WORKER_DIR.*': 'SPARK_WORKER_DIR={}'.format(self.dist_config.path('spark_work')),
         })
+
+        # If zookeeper is available we should be in HA mode so we should not set the MASTER_IP
+        if not unitdata.kv().get('zookeepers.available', False):
+            master_ip = self.get_master_ip()
+            utils.re_edit_in_place(spark_env, {
+                r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(master_ip),
+            })
 
         # manage SparkBench
         install_sb = hookenv.config()['spark_bench_enabled']

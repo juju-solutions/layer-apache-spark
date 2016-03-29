@@ -62,6 +62,9 @@ def report_status():
                            'Yarn execution mode not available')
         return
 
+    if is_state('zookeeper.configured') and mode == 'standalone':
+        mode = mode + " HA"
+
     hookenv.status_set('active', 'Ready ({})'.format(mode))
 
 
@@ -105,12 +108,41 @@ def update_peers_config(nodes):
     nodes.sort()
     if data_changed('available.peers', nodes):
         spark = Spark(get_dist_config())
+        # We need to reconfigure spark only if the master changes or if we
+        # are in HA mode and a new potential master is added
         if spark.update_peers(nodes):
             hookenv.status_set('maintenance', 'Updating Apache Spark config')
             spark.stop()
             spark.configure()
             spark.start()
             report_status()
+
+
+@when('spark.installed', 'zookeeper.ready')
+def configure_zookeepers(zk):
+    zks = zk.zookeepers()
+    if data_changed('available.zookeepers', zks):
+        spark = Spark(get_dist_config())
+        hookenv.status_set('maintenance', 'Updating Apache Spark HA')
+        spark.stop()
+        spark.configure_ha(zks)
+        spark.configure()
+        spark.start()
+        set_state('zookeeper.configured')
+        report_status()
+
+
+@when('spark.installed', 'zookeeper.configured')
+@when_not('zookeeper.ready')
+def disable_zookeepers():
+    hookenv.status_set('maintenance', 'Disabling high availability in standalone mode')
+    spark = Spark(get_dist_config())
+    spark.stop()
+    spark.disable_ha()
+    spark.configure()
+    spark.start()
+    remove_state('zookeeper.configured')
+    report_status()
 
 
 @when('spark.started', 'client.joined')
