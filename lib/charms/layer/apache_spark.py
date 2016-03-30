@@ -208,6 +208,11 @@ class Spark(object):
 
         return unitdata.kv().get('spark_master.ip')
 
+    def is_master(self):
+        unit_ip = utils.resolve_private_address(hookenv.unit_private_ip())
+        master_ip = self.get_master_ip()
+        return unit_ip == master_ip
+
     def get_all_master_ips(self):
         if not unitdata.kv().get('spark_master.is_set', False):
             self.update_peers([])

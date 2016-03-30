@@ -40,42 +40,46 @@ def start_spark():
     spark.start()
     spark.open_ports()
     set_state('spark.started')
-    report_status()
+    report_status(spark)
 
 
-@when('spark.started', 'hadoop.ready')
-@when_not('yarn.configured')
-def configure_yarn_mode(hadoop):
-    hookenv.status_set('maintenance', 'Setting up Apache Spark for YARN')
-    spark = Spark(get_dist_config())
-    spark.stop()
-    spark.configure_yarn_mode()
-    spark.start()
-    set_state('yarn.configured')
-    report_status()
-
-
-def report_status():
+def report_status(spark):
     mode = hookenv.config()['spark_execution_mode']
     if (not is_state('yarn.configured')) and mode.startswith('yarn'):
         hookenv.status_set('blocked',
                            'Yarn execution mode not available')
         return
 
-    if is_state('zookeeper.configured') and mode == 'standalone':
-        mode = mode + " HA"
+    if mode == 'standalone':
+        if is_state('zookeeper.configured'):
+            mode = mode + " HA"
+        elif spark.is_master():
+            mode = mode + " - master"
 
     hookenv.status_set('active', 'Ready ({})'.format(mode))
 
 
 @when('spark.started', 'config.changed')
 def reconfigure_spark():
+    mode = hookenv.config()['spark_execution_mode']
     hookenv.status_set('maintenance', 'Configuring Apache Spark')
     spark = Spark(get_dist_config())
     spark.stop()
+    if is_state('hadoop.ready') and mode.startswith('yarn') and (not is_state('yarn.configured')):
+        # was in a mode other than yarn, going to yarn
+        hookenv.status_set('maintenance', 'Setting up Apache Spark for YARN')
+        spark.configure_yarn_mode()
+        set_state('yarn.configured')
+
+    if is_state('hadoop.ready') and (not mode.startswith('yarn')) and is_state('yarn.configured'):
+        # was in a yarn mode and going to another mode
+        hookenv.status_set('maintenance', 'Disconnecting Apache Spark from YARN')
+        spark.disable_yarn_mode()
+        remove_state('yarn.configured')
+
     spark.configure()
     spark.start()
-    report_status()
+    report_status(spark)
 
 
 @when('spark.started', 'yarn.configured')
@@ -87,7 +91,7 @@ def disable_yarn():
     spark.disable_yarn_mode()
     spark.start()
     remove_state('yarn.configured')
-    report_status()
+    report_status(spark)
 
 
 @when('spark.installed', 'sparkpeers.joined')
@@ -115,7 +119,7 @@ def update_peers_config(nodes):
             spark.stop()
             spark.configure()
             spark.start()
-            report_status()
+            report_status(spark)
 
 
 @when('spark.installed', 'zookeeper.ready')
@@ -129,7 +133,7 @@ def configure_zookeepers(zk):
         spark.configure()
         spark.start()
         set_state('zookeeper.configured')
-        report_status()
+        report_status(spark)
 
 
 @when('spark.installed', 'zookeeper.configured')
@@ -142,7 +146,7 @@ def disable_zookeepers():
     spark.configure()
     spark.start()
     remove_state('zookeeper.configured')
-    report_status()
+    report_status(spark)
 
 
 @when('spark.started', 'client.joined')
