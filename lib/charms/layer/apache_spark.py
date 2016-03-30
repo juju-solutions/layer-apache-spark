@@ -353,11 +353,11 @@ class Spark(object):
         # stop services (if they're running) to pick up any config change
         self.stop()
         # always start the history server, start master/worker if we're standalone
-        history_server_out = '/var/log/spark'
+        history_server_event_logs = '/tmp/spark-events'
         if unitdata.kv().get('hdfs.available', False):
-            history_server_out = 'hdfs:///user/ubuntu/directory'
+            history_server_event_logs = 'hdfs:///user/ubuntu/directory'
 
-        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), history_server_out)
+        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), history_server_event_logs)
         if hookenv.config()['spark_execution_mode'] == 'standalone':
             utils.run_as('ubuntu', '{}/sbin/start-master.sh'.format(spark_home))
             utils.run_as('ubuntu', '{}/sbin/start-slave.sh'.format(spark_home), self.get_master())
