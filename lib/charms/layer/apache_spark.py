@@ -42,7 +42,7 @@ class Spark(object):
             utils.run_as('hdfs', 'hdfs', 'dfs', '-put', spark_assembly_jar,
                          '/user/ubuntu/share/lib/spark-assembly.jar')
         except CalledProcessError:
-            print ("File exists")
+            pass  # jar already in HDFS from another Spark
 
         # create hdfs storage space for history server
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
