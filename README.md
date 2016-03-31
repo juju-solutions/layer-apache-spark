@@ -1,6 +1,6 @@
 ## Overview
 
-### Spark 1.4.x cluster for YARN & HDFS
+### Spark Cluster
 Apache Spark™ is a fast and general purpose engine for large-scale data
 processing. Key features:
 

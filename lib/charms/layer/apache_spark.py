@@ -50,7 +50,7 @@ class Spark(object):
             utils.run_as('hdfs', 'hdfs', 'dfs', '-put', spark_assembly_jar,
                          '/user/ubuntu/share/lib/spark-assembly.jar')
         except CalledProcessError:
-            print ("File exists")
+            print("File exists")
 
         with utils.environment_edit_in_place('/etc/environment') as env:
             env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
@@ -89,7 +89,6 @@ class Spark(object):
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-        etc_env = utils.read_etc_env()
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
@@ -109,7 +108,7 @@ class Spark(object):
         zk_connect = ",".join(zks)
 
         daemon_opts = ('-Dspark.deploy.recoveryMode=ZOOKEEPER '
-                      '-Dspark.deploy.zookeeper.url={}'.format(zk_connect))
+                       '-Dspark.deploy.zookeeper.url={}'.format(zk_connect))
 
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
         utils.re_edit_in_place(spark_env, {
@@ -287,7 +286,6 @@ class Spark(object):
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-        etc_env = utils.read_etc_env()
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
