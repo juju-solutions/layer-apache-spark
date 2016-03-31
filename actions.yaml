@@ -1,3 +1,5 @@
+smoke-test:
+    description: Verify that Spark is working by calculating pi.
 sparkpi:
     description: Calculate Pi
     params:

@@ -1,4 +1,10 @@
 #!/bin/bash
+
+if ! charms.reactive is_state 'spark.started'; then
+    action-fail 'Spark not yet ready'
+    exit
+fi
+
 . /etc/environment
 cd ${SPARK_HOME}/sbin
 su ubuntu -c "./stop-history-server.sh"
