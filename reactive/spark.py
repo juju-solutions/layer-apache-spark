@@ -62,6 +62,24 @@ def report_status(spark):
     hookenv.status_set('active', 'Ready ({})'.format(mode))
 
 
+@when('spark.installed', 'hadoop.ready')
+@when_not('yarn.configured')
+def switch_to_yarn(hadoop):
+    '''
+    In case you first change the config and then connect the plugin.
+    '''
+    mode = hookenv.config()['spark_execution_mode']
+    if mode.startswith('yarn'):
+        spark = Spark(get_dist_config())
+        hookenv.status_set('maintenance', 'Setting up Apache Spark for YARN')
+        spark.stop()
+        spark.configure_yarn_mode()
+        set_state('yarn.configured')
+        spark.configure()
+        spark.start()
+        report_status(spark)
+
+
 @when('spark.started', 'config.changed')
 def reconfigure_spark():
     mode = hookenv.config()['spark_execution_mode']
