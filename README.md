@@ -39,7 +39,7 @@ This charm allows the deployment of Apache Spark in the modes described below:
 
     juju add-unit spark
 
- When in standalone mode Juju ensures a single Sprk master is appointed.
+ When in standalone mode Juju ensures a single Spark master is appointed.
  The status of the unit acting as master reads "Ready (standalone - master)",
  while the rest of the units display a status of  "Ready (standalone)".
  In case you remove the master unit Juju will appoint a new master to the cluster.
@@ -49,18 +49,19 @@ This charm allows the deployment of Apache Spark in the modes described below:
 
  * **Standalone HA
 
- To enable High Availablity properties of a cluster you need to add a relation
- between spark and a zookeeper deployment.
+ To enable High Availability properties of a cluster you need to add a relation
+ between spark and a zookeeper deployment. The suggested deployment method is to use the
+ [apache-spark-HA](https://jujucharms.com/apache-spark-ha/) bundle.
 
-    juju deploy apache-zookeeper zk
-    juju add-relation spark zk
+    juju-quickstart apache-spark-ha
 
  In this mode again you can scale your cluster to match your needs by adding/removing
  units. Spark units report "Ready (standalone HA)" in their status so if you need to
  identify the node acting as master you need to query the Zookeeper deployment.
 
     juju ssh zk/0
-    zkCli.sh get /spark/master_status  
+    zkCli.sh
+    get /spark/master_status
  
  * **Yarn-client and Yarn-cluster
 
@@ -88,7 +89,7 @@ streaming jobs in a variety of ways:
   * **Spark shell**
 
 Spark’s shell provides a simple way to learn the API, as well as a powerful
-tool to analyze data interactively. It is available in either Scala or Python
+tool to analyse data interactively. It is available in either Scala or Python
 and can be run from the Spark unit as follows:
 
        juju ssh spark/0

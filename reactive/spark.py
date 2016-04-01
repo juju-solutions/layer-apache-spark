@@ -11,11 +11,14 @@ from charms.reactive.helpers import data_changed
 # Spark can be deployed.  The states used by this charm to determine this are:
 #
 #   * spark.installed - This is set by this charm in the code below.
+#   * yarn.configured - This is set when spark is configured to use hadoop-yarn.
+#   * zookeeper.configured - This is set when spark is related to zk. Implies HA.
 #
 #   * hadoop.ready - This is set by the hadoop-plugin interface layer once
 #                    Yarn & HDFS have reported that ready.  The prefix "hadoop"
 #                    in this state is determined by the name of the relation
 #                    to the plugin charm in metadata.yaml.
+#   * zookeeper.ready - This is set by the zookeeper interface layer.
 #
 
 

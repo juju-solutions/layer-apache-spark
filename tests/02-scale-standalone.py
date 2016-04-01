@@ -16,6 +16,11 @@ class TestScaleStandalone(unittest.TestCase):
         self.d.sentry.wait(timeout=1800)
 
     def test_scaleup(self):
+        """
+        Wait for all three spark units to agree on a master.
+        Remove the master.
+        Check that all units agree on the same new master.
+        """
         print("Waiting for units to become ready.")
         self.d.sentry.wait_for_messages({"sparkscale": ["Ready (standalone - master)",
                                                         "Ready (standalone)",
