@@ -50,7 +50,7 @@ class Spark(object):
             utils.run_as('hdfs', 'hdfs', 'dfs', '-put', spark_assembly_jar,
                          '/user/ubuntu/share/lib/spark-assembly.jar')
         except CalledProcessError:
-            hookenv.log("File spark-assembly.jar already exists")
+            pass  # jar already in HDFS from another Spark
 
         with utils.environment_edit_in_place('/etc/environment') as env:
             env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
