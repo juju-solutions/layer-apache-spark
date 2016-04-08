@@ -2,6 +2,7 @@ import os
 from glob import glob
 from path import Path
 from subprocess import CalledProcessError
+from subprocess import check_call
 
 import jujuresources
 from charmhelpers.core import hookenv
@@ -9,6 +10,7 @@ from charmhelpers.core import host
 from charmhelpers.core import unitdata
 from charmhelpers.fetch.archiveurl import ArchiveUrlFetchHandler
 from jujubigdata import utils
+from charms.templating.jinja2 import render
 
 
 class ResourceError(Exception):
@@ -21,7 +23,6 @@ class Spark(object):
         self.dist_config = dist_config
         self.resources = {
             'spark-1.6.1-hadoop2.6.0': 'spark-1.6.1-hadoop2.6.0',
-            'spark-1.6.1': 'spark-1.6.1',
         }
 
     def install(self):
@@ -38,6 +39,12 @@ class Spark(object):
         # in local/standalone modes
         utils.install_ssh_key('ubuntu', utils.get_ssh_key('ubuntu'))
 
+        utils.initialize_kv_host()
+        utils.manage_etc_hosts()
+        hostname = hookenv.local_unit().replace('/', '-')
+        etc_hostname = Path('/etc/hostname')
+        etc_hostname.write_text(hostname)
+        check_call(['hostname', '-F', etc_hostname])
         unitdata.kv().set('spark.installed', True)
         unitdata.kv().flush(True)
 
@@ -229,6 +236,45 @@ class Spark(object):
                 "log4j.logger.org.apache.spark=WARN",
                 "log4j.logger.org.eclipse.jetty=WARN",
             ])
+
+    def setup_init_scripts(self):
+        templates_list = ['history', 'master', 'slave']
+        for template in templates_list:
+            if host.init_is_systemd():
+                template_path = '/etc/systemd/system/spark-{}.service'.format(template)
+            else:
+                template_path = '/etc/init/spark-{}.conf'.format(template)
+            if os.path.exists(template_path):
+                os.remove(template_path)
+
+        self.stop()
+
+        mode = hookenv.config()['spark_execution_mode']
+        templates_list = ['history']
+        if mode == 'standalone':
+            templates_list.append('master')
+            templates_list.append('slave')
+
+        for template in templates_list:
+            template_name = '{}-upstart.conf'.format(template)
+            template_path = '/etc/init/spark-{}.conf'.format(template)
+            if host.init_is_systemd():
+                template_name = '{}-systemd.conf'.format(template)
+                template_path = '/etc/systemd/system/spark-{}.service'.format(template)
+
+            render(
+                template_name,
+                template_path,
+                context={
+                    'spark_bin': self.dist_config.path('spark'),
+                    'master': self.get_master()
+                },
+            )
+            if host.init_is_systemd():
+                utils.run_as('root', 'systemctl', 'enable', 'spark-{}.service'.format(template))
+
+        if host.init_is_systemd():
+            utils.run_as('root', 'systemctl', 'daemon-reload')
 
     def install_demo(self):
         '''
@@ -431,6 +477,8 @@ class Spark(object):
             unitdata.kv().set('spark_bench.installed', False)
             unitdata.kv().flush(True)
 
+        self.setup_init_scripts()
+
     def open_ports(self):
         for port in self.dist_config.exposed_ports('spark'):
             hookenv.open_port(port)
@@ -443,23 +491,21 @@ class Spark(object):
         if unitdata.kv().get('spark.uprading', False):
             return
 
-        spark_home = self.dist_config.path('spark')
         # stop services (if they're running) to pick up any config change
         self.stop()
         # always start the history server, start master/worker if we're standalone
-        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home))
+        host.service_start('spark-history')
         if hookenv.config()['spark_execution_mode'] == 'standalone':
-            utils.run_as('ubuntu', '{}/sbin/start-master.sh'.format(spark_home))
-            utils.run_as('ubuntu', '{}/sbin/start-slave.sh'.format(spark_home), self.get_master())
+            host.service_start('spark-master')
+            host.service_start('spark-slave')
 
     def stop(self):
         if not unitdata.kv().get('spark.installed', False):
             return
-        spark_home = self.dist_config.path('spark')
         # Only stop services if they're running
         if utils.jps("HistoryServer"):
-            utils.run_as('ubuntu', '{}/sbin/stop-history-server.sh'.format(spark_home))
+            host.service_stop('spark-history')
         if utils.jps("Master"):
-            utils.run_as('ubuntu', '{}/sbin/stop-master.sh'.format(spark_home))
+            host.service_stop('spark-master')
         if utils.jps("Worker"):
-            utils.run_as('ubuntu', '{}/sbin/stop-slave.sh'.format(spark_home))
+            host.service_stop('spark-slave')

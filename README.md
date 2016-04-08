@@ -1,6 +1,7 @@
 ## Overview
 
 ### Spark Cluster
+
 Apache Spark™ is a fast and general purpose engine for large-scale data
 processing. Key features:
 
@@ -288,6 +289,13 @@ Valid action names at this time are:
   * trianglecount
   * sparkpi
 
+
+## Upgrading and Apache Bigtop Spark
+
+This charm does not currently support upgrading, because it currently only
+supports a single version of Apache Spark.  It is recommended to look to the
+[Apache Bigtop Spark][https://jujucharms.com/apache-bigtop-spark/] charm for
+support of future versions of Apache Spark, via the Apache Bigtop project.
 
 ## Contact Information
 

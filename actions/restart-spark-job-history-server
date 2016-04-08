@@ -1,11 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env python3
+import sys
 
-if ! charms.reactive is_state 'spark.started'; then
-    action-fail 'Spark not yet ready'
-    exit
-fi
 
-. /etc/environment
-cd ${SPARK_HOME}/sbin
-su ubuntu -c "./stop-history-server.sh"
-su ubuntu -c "./start-history-server.sh hdfs:///user/ubuntu/directory"
+try:
+    from charmhelpers.core import host, hookenv, unitdata
+    from jujubigdata import utils
+    charm_ready = True
+except ImportError:
+    charm_ready = False
+
+if not charm_ready:
+    from subprocess import call
+    call(['action-fail', 'Spark service not yet ready'])
+    sys.exit(0)
+
+if not host.service_available('spark-history'):
+    from subprocess import call
+    call(['action-fail', 'Spark history service not available'])
+    sys.exit(0)
+
+host.service_restart('spark-history')
