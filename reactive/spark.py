@@ -104,7 +104,7 @@ def reconfigure_spark():
 
 
 @when('spark.started', 'yarn.configured')
-@when_not('hadoop.ready', )
+@when_not('hadoop.ready')
 def disable_yarn():
     hookenv.status_set('maintenance', 'Disconnecting Apache Spark from YARN')
     spark = Spark(get_dist_config())
@@ -160,7 +160,7 @@ def configure_zookeepers(zk):
 @when('spark.installed', 'zookeeper.configured')
 @when_not('zookeeper.ready')
 def disable_zookeepers():
-    hookenv.status_set('maintenance', 'Disabling high availability in standalone mode')
+    hookenv.status_set('maintenance', 'Disabling high availability')
     spark = Spark(get_dist_config())
     spark.stop()
     spark.disable_ha()

@@ -18,7 +18,7 @@ options:
         owner: 'ubuntu'
         group: 'hadoop'
       spark_events:
-        path: '/tmp/spark-events'
+        path: '/spark-history/tmp'
         owner: 'ubuntu'
         group: 'hadoop'
       spark_work:

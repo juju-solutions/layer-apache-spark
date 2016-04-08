@@ -57,9 +57,9 @@ class Spark(object):
 
         # create hdfs storage space for history server
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
-                     '/user/ubuntu/directory')
+                     self.dist_config.path('spark_events'))
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
-                     '/user/ubuntu/directory')
+                     self.dist_config.path('spark_events'))
 
         # create hdfs storage space for spark-bench
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
@@ -74,7 +74,7 @@ class Spark(object):
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
-            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
+            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs://{}'.format(self.dist_config.path('spark_events')),
             r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
         }, append_non_matches=True)
 
@@ -291,6 +291,15 @@ class Spark(object):
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
         }, append_non_matches=True)
 
+        # If hdfs is not available the event logs should go to a local dir
+        if not unitdata.kv().get('hdfs.available', False):
+            spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+            utils.re_edit_in_place(spark_conf, {
+                r'.*spark.eventLog.dir .*': 'spark.eventLog.dir file://{}'
+                                            .format(self.dist_config.path('spark_events')),
+            }, append_non_matches=True)
+
+
         # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
         utils.re_edit_in_place(spark_env, {
@@ -356,9 +365,9 @@ class Spark(object):
         # stop services (if they're running) to pick up any config change
         self.stop()
         # always start the history server, start master/worker if we're standalone
-        history_server_event_logs = '/tmp/spark-events'
+        history_server_event_logs = 'file://{}'.format(self.dist_config.path('spark_events'))
         if unitdata.kv().get('hdfs.available', False):
-            history_server_event_logs = 'hdfs:///user/ubuntu/directory'
+            history_server_event_logs = 'hdfs://{}'.format(self.dist_config.path('spark_events'))
 
         utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), history_server_event_logs)
         if hookenv.config()['spark_execution_mode'] == 'standalone':
