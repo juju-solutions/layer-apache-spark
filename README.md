@@ -1,7 +1,6 @@
 ## Overview
 
-### Spark 1.6.1 cluster for YARN & HDFS
-
+### Spark Cluster
 Apache Spark™ is a fast and general purpose engine for large-scale data
 processing. Key features:
 
@@ -25,17 +24,64 @@ processing. Key features:
  application.
 
 
-## Usage
+## Deployment
 
-This charm leverages our pluggable Hadoop model with the `hadoop-plugin`
-interface. This means that you will need to deploy a base Apache Hadoop cluster
-to run Spark. The suggested deployment method is to use the
-[apache-hadoop-spark](https://jujucharms.com/apache-hadoop-spark/)
-bundle. This will deploy the Apache Hadoop platform with a single Apache Spark
-unit that communicates with the cluster by relating to the
-`apache-hadoop-plugin` subordinate charm:
+This charm allows the deployment of Apache Spark in the modes described below:
+
+ * **Standalone
+
+ In this mode Spark units form a cluster that you can scale to match your needs.
+ Starting with a single node:
+ 
+    juju deploy apache-spark spark
+
+ You can scale the cluster by adding more spark units:
+
+    juju add-unit spark
+
+ When in standalone mode Juju ensures a single Spark master is appointed.
+ The status of the unit acting as master reads "Ready (standalone - master)",
+ while the rest of the units display a status of  "Ready (standalone)".
+ In case you remove the master unit Juju will appoint a new master to the cluster.
+ However, should a master fail in this standalone mode the cluster will stop functioning
+ properly. Master node failures is handled properly when Apache spark is setup in
+ High Availability mode (Standalone HA). 
+
+ * **Standalone HA
+
+ To enable High Availability properties of a cluster you need to add a relation
+ between spark and a zookeeper deployment. The suggested deployment method is to use the
+ [apache-spark-HA](https://jujucharms.com/apache-spark-ha/) bundle.
+
+    juju-quickstart apache-spark-ha
+
+ In this mode again you can scale your cluster to match your needs by adding/removing
+ units. Spark units report "Ready (standalone HA)" in their status so if you need to
+ identify the node acting as master you need to query the Zookeeper deployment.
+
+    juju ssh zk/0
+    zkCli.sh
+    get /spark/master_status
+ 
+ * **Yarn-client and Yarn-cluster
+
+ This charm leverages our pluggable Hadoop model with the `hadoop-plugin`
+ interface. This means that you can relate this charm to a base Apache Hadoop cluster
+ to run Spark jobs there. The suggested deployment method is to use the
+ [apache-hadoop-spark](https://jujucharms.com/apache-hadoop-spark/)
+ bundle. This will deploy the Apache Hadoop platform with a single Apache Spark
+ unit that communicates with the cluster by relating to the
+ `apache-hadoop-plugin` subordinate charm:
 
     juju-quickstart apache-hadoop-spark
+
+
+Note: To transition among execution modes you need to set the
+`spark-execution-mode` config variable:
+
+    juju set spark spark-execution-mode=<new_mode>
+
+## Usage
 
 Once deployment is complete, you can manually load and run Spark batch or
 streaming jobs in a variety of ways:
@@ -43,7 +89,7 @@ streaming jobs in a variety of ways:
   * **Spark shell**
 
 Spark’s shell provides a simple way to learn the API, as well as a powerful
-tool to analyze data interactively. It is available in either Scala or Python
+tool to analyse data interactively. It is available in either Scala or Python
 and can be run from the Spark unit as follows:
 
        juju ssh spark/0
@@ -180,9 +226,10 @@ via:
 
 ### Verify Job History
  
-Verify the Job History server shows the previous spark-submit test by
-exposing the service (`juju expose spark`) and visiting
-http://{spark_unit_ip_address}:18080
+The Job History server shows all active and finished spark jobs submitted.
+To view the Job History server you need to expose spark (`juju expose spark`)
+and navigate to http://{spark_master_unit_ip_address}:18080 of the
+unit acting as master.
 
 
 ## Benchmarking

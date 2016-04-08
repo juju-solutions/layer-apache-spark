@@ -46,7 +46,7 @@ options:
             'spark_bench_enabled' is 'true'.
     spark_execution_mode:
         type: string
-        default: 'yarn-client'
+        default: 'standalone'
         description: |
             Options are "local", "standalone", "yarn-client", and
             "yarn-cluster". Consult the readme for details on these options.

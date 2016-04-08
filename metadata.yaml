@@ -11,3 +11,10 @@ provides:
     interface: benchmark
   client:
     interface: spark
+requires:
+  zookeeper:
+    interface: zookeeper
+peers:
+  sparkpeers:
+    interface: spark-quorum
+

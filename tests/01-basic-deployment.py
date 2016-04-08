@@ -7,17 +7,22 @@ import amulet
 class TestDeploy(unittest.TestCase):
     """
     Trivial deployment test for Apache Spark.
-
-    This charm cannot do anything useful by itself, so integration testing
-    is done in the bundle.
     """
-
-    def test_deploy(self):
+    def setUp(self):
         self.d = amulet.Deployment(series='trusty')
         self.d.add('spark', 'apache-spark')
         self.d.setup(timeout=900)
         self.d.sentry.wait(timeout=1800)
-        self.unit = self.d.sentry['spark'][0]
+
+    def test_deploy(self):
+        self.d.sentry.wait_for_messages({"spark": "Ready (standalone - master)"})
+        spark_unit = self.d.sentry["spark"][0]
+        ip = spark_unit.info['public-address']
+        (stdout, errcode) = spark_unit.run('su ubuntu -c /home/ubuntu/sparkpi.sh')
+        # ensure we comuted pi
+        assert '3.14' in stdout
+        # we have only one unit that must be the master
+        assert 'spark://{}'.format(ip) in stdout
 
 
 if __name__ == '__main__':

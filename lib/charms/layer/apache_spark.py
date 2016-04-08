@@ -29,10 +29,18 @@ class Spark(object):
                               destination=self.dist_config.path('spark'),
                               skip_top_level=True)
 
+        self.dist_config.add_users()
+        self.dist_config.add_dirs()
+        self.dist_config.add_packages()
+
         # allow ubuntu user to ssh to itself so spark can ssh to its worker
         # in local/standalone modes
         utils.install_ssh_key('ubuntu', utils.get_ssh_key('ubuntu'))
 
+        unitdata.kv().set('spark.installed', True)
+        unitdata.kv().flush(True)
+
+    def configure_yarn_mode(self):
         # put the spark jar in hdfs
         spark_assembly_jar = glob('{}/lib/spark-assembly-*.jar'.format(
                                   self.dist_config.path('spark')))[0]
@@ -44,11 +52,14 @@ class Spark(object):
         except CalledProcessError:
             pass  # jar already in HDFS from another Spark
 
+        with utils.environment_edit_in_place('/etc/environment') as env:
+            env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
+
         # create hdfs storage space for history server
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
-                     '/user/ubuntu/directory')
+                     self.dist_config.path('spark_events'))
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
-                     '/user/ubuntu/directory')
+                     self.dist_config.path('spark_events'))
 
         # create hdfs storage space for spark-bench
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
@@ -56,7 +67,63 @@ class Spark(object):
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
                      '/user/ubuntu/spark-bench')
 
-        unitdata.kv().set('spark.installed', True)
+        # update spark-defaults
+        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+        etc_env = utils.read_etc_env()
+        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        utils.re_edit_in_place(spark_conf, {
+            r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
+            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
+            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs://{}'.format(self.dist_config.path('spark_events')),
+            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
+        }, append_non_matches=True)
+
+        unitdata.kv().set('hdfs.available', True)
+        unitdata.kv().flush(True)
+
+    def disable_yarn_mode(self):
+        # put the spark jar in hdfs
+        with utils.environment_edit_in_place('/etc/environment') as env:
+            env['SPARK_JAR'] = glob('{}/lib/spark-assembly-*.jar'.format(
+                                  self.dist_config.path('spark')))[0]
+
+        # update spark-defaults
+        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+        utils.re_edit_in_place(spark_conf, {
+            r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
+            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
+            r'.*spark.eventLog.dir .*': '# spark.eventLog.dir hdfs:///user/ubuntu/directory',
+            r'.*spark.driver.extraClassPath .*': '# spark.driver.extraClassPath none',
+        }, append_non_matches=True)
+
+        unitdata.kv().set('hdfs.available', False)
+        unitdata.kv().flush(True)
+
+    def configure_ha(self, zk_units):
+        zks = []
+        for unit in zk_units:
+            ip = utils.resolve_private_address(unit['host'])
+            zks.append("%s:%s" % (ip, unit['port']))
+
+        zk_connect = ",".join(zks)
+
+        daemon_opts = ('-Dspark.deploy.recoveryMode=ZOOKEEPER '
+                       '-Dspark.deploy.zookeeper.url={}'.format(zk_connect))
+
+        spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
+        utils.re_edit_in_place(spark_env, {
+            r'.*SPARK_DAEMON_JAVA_OPTS.*': 'SPARK_DAEMON_JAVA_OPTS=\"{}\"'.format(daemon_opts),
+            r'.*SPARK_MASTER_IP.*': '# SPARK_MASTER_IP',
+        })
+        unitdata.kv().set('zookeepers.available', True)
+        unitdata.kv().flush(True)
+
+    def disable_ha(self):
+        spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
+        utils.re_edit_in_place(spark_env, {
+            r'.*SPARK_DAEMON_JAVA_OPTS.*': '# SPARK_DAEMON_JAVA_OPTS',
+        })
+        unitdata.kv().set('zookeepers.available', False)
         unitdata.kv().flush(True)
 
     def setup_spark_config(self):
@@ -103,15 +170,71 @@ class Spark(object):
         else:
             return False
 
+    def update_peers(self, node_list):
+        '''
+        This method wtill return True if the master peer was updated.
+        False otherwise.
+        '''
+        old_master = unitdata.kv().get('spark_master.ip', 'not_set')
+        master_ip = ''
+        if not node_list:
+            hookenv.log("No peers yet. Acting as master.")
+            master_ip = utils.resolve_private_address(hookenv.unit_private_ip())
+            nodes = [(hookenv.local_unit(), master_ip)]
+            unitdata.kv().set('spark_all_master.ips', nodes)
+            unitdata.kv().set('spark_master.ip', master_ip)
+        else:
+            # Use as master the node with minimum Id
+            # Any ordering is fine here. Lexicografical ordering too.
+            node_list.sort()
+            master_ip = utils.resolve_private_address(node_list[0][1])
+            unitdata.kv().set('spark_master.ip', master_ip)
+            unitdata.kv().set('spark_all_master.ips', node_list)
+            hookenv.log("Updating master ip to {}.".format(master_ip))
+
+        unitdata.kv().set('spark_master.is_set', True)
+        unitdata.kv().flush(True)
+        # Incase of an HA setup adding peers must be treated as a potential
+        # mastr change
+        if (old_master != master_ip) or unitdata.kv().get('zookeepers.available', False):
+            return True
+        else:
+            return False
+
+    def get_master_ip(self):
+        if not unitdata.kv().get('spark_master.is_set', False):
+            self.update_peers([])
+
+        return unitdata.kv().get('spark_master.ip')
+
+    def is_master(self):
+        unit_ip = utils.resolve_private_address(hookenv.unit_private_ip())
+        master_ip = self.get_master_ip()
+        return unit_ip == master_ip
+
+    def get_all_master_ips(self):
+        if not unitdata.kv().get('spark_master.is_set', False):
+            self.update_peers([])
+
+        return [p[1] for p in unitdata.kv().get('spark_all_master.ips')]
+
     # translate our execution_mode into the appropriate --master value
     def get_master(self):
         mode = hookenv.config()['spark_execution_mode']
+        zks = unitdata.kv().get('zookeepers.available', False)
         master = None
         if mode.startswith('local') or mode == 'yarn-cluster':
             master = mode
-        elif mode == 'standalone':
-            local_ip = utils.resolve_private_address(hookenv.unit_private_ip())
-            master = 'spark://{}:7077'.format(local_ip)
+        elif mode == 'standalone' and zks:
+            master_ips = self.get_all_master_ips()
+            nodes = []
+            for ip in master_ips:
+                nodes.append('{}:7077'.format(ip))
+            nodes_str = ','.join(nodes)
+            master = 'spark://{}'.format(nodes_str)
+        elif mode == 'standalone' and (not zks):
+            master_ip = self.get_master_ip()
+            master = 'spark://{}:7077'.format(master_ip)
         elif mode.startswith('yarn'):
             master = 'yarn-client'
         return master
@@ -160,29 +283,38 @@ class Spark(object):
             env['SPARK_DRIVER_MEMORY'] = driver_mem
             env['SPARK_EXECUTOR_MEMORY'] = executor_mem
             env['SPARK_HOME'] = spark_home
-            env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-        etc_env = utils.read_etc_env()
-        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
-            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs:///user/ubuntu/directory',
-            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
         }, append_non_matches=True)
+
+        # If hdfs is not available the event logs should go to a local dir
+        if not unitdata.kv().get('hdfs.available', False):
+            spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+            utils.re_edit_in_place(spark_conf, {
+                r'.*spark.eventLog.dir .*': 'spark.eventLog.dir file://{}'
+                                            .format(self.dist_config.path('spark_events')),
+            }, append_non_matches=True)
+
 
         # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
-        local_ip = utils.resolve_private_address(hookenv.unit_private_ip())
         utils.re_edit_in_place(spark_env, {
             r'.*SPARK_DRIVER_MEMORY.*': 'SPARK_DRIVER_MEMORY={}'.format(driver_mem),
             r'.*SPARK_EXECUTOR_MEMORY.*': 'SPARK_EXECUTOR_MEMORY={}'.format(executor_mem),
             r'.*SPARK_LOG_DIR.*': 'SPARK_LOG_DIR={}'.format(self.dist_config.path('spark_logs')),
-            r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(local_ip),
             r'.*SPARK_WORKER_DIR.*': 'SPARK_WORKER_DIR={}'.format(self.dist_config.path('spark_work')),
         })
+
+        # If zookeeper is available we should be in HA mode so we should not set the MASTER_IP
+        if not unitdata.kv().get('zookeepers.available', False):
+            master_ip = self.get_master_ip()
+            utils.re_edit_in_place(spark_env, {
+                r'.*SPARK_MASTER_IP.*': 'SPARK_MASTER_IP={}'.format(master_ip),
+            })
 
         # manage SparkBench
         install_sb = hookenv.config()['spark_bench_enabled']
@@ -233,7 +365,11 @@ class Spark(object):
         # stop services (if they're running) to pick up any config change
         self.stop()
         # always start the history server, start master/worker if we're standalone
-        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), 'hdfs:///user/ubuntu/directory')
+        history_server_event_logs = 'file://{}'.format(self.dist_config.path('spark_events'))
+        if unitdata.kv().get('hdfs.available', False):
+            history_server_event_logs = 'hdfs://{}'.format(self.dist_config.path('spark_events'))
+
+        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), history_server_event_logs)
         if hookenv.config()['spark_execution_mode'] == 'standalone':
             utils.run_as('ubuntu', '{}/sbin/start-master.sh'.format(spark_home))
             utils.run_as('ubuntu', '{}/sbin/start-slave.sh'.format(spark_home), self.get_master())
