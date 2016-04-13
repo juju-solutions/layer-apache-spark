@@ -184,6 +184,7 @@ def configure_zookeepers(zk):
 @when_not('zookeeper.ready')
 def disable_zookeepers():
     hookenv.status_set('maintenance', 'Disabling high availability')
+    data_changed('available.zookeepers', None)
     spark = Spark(get_dist_config())
     spark.stop()
     spark.disable_ha()
