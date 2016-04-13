@@ -50,3 +50,13 @@ options:
         description: |
             Options are "local", "standalone", "yarn-client", and
             "yarn-cluster". Consult the readme for details on these options.
+    spark_version:
+        type: string
+        default: '1.6.1-hadoop2.6.0'
+        description: |
+            Version of Apache Spark to be deploied.
+    maintainance_mode:
+        type: boolean
+        default: false
+        description: |
+            Enter maintainance mode to upgrade Spark.

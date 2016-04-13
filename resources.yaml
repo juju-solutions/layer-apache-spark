@@ -1,7 +1,7 @@
 options:
   output_dir: /home/ubuntu/resources
 optional_resources:
-  spark-noarch:
+  spark-1.6.1-hadoop2.6.0:
     url: https://s3.amazonaws.com/jujubigdata/apache/noarch/spark-1.6.1-bin-hadoop2.6-49154d13.tgz
     hash: 49154d13d5b216c71556f8f5939b13f4a2a29623d02c49dc1b2f21228352f65defe831f9cfaf633ba7a0bd53833522ba51eb778654c8e49434439afb5265246f
     hash_type: sha512

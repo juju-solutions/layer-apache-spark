@@ -127,6 +127,35 @@ Once the relation has been made, access the web interface at
 http://{spark_unit_ip_address}:8880
 
 
+## Upgrading Spark Charm
+
+To upgrade the charm is a multi tep process.
+First you will need to upgrade the charm by issuing:
+
+    juju upgrade-charm spark
+
+This will fetch any availuable upgrades. You can query for the available versions via:
+
+    juju action do spark/0 list-spark-versions
+
+Next you need to enter the maintainance modes
+where spark is sitting idle for the upgrade to start:
+
+    juju set spark maintainance_mode=true
+
+Set the target spark version (any new units added will be using that spark version):
+
+    juju set spark spark_version=<new_version>
+
+Trigger the upgrade:
+
+    juju action do spark/0 upgrade-spark
+
+Exit the maintainance mode:
+
+    juju set spark maintainance_mode=false
+
+
 ## Configuration
 
 ### driver_memory
