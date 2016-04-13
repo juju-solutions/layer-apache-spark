@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+for line in "$(crontab -lu ubuntu | grep '# mapreduce job: ')"; do
+    if [[ -n "$line" ]]; then
+        action_id=$(echo "$line" | sed -e 's/.*  # mapreduce job: //')
+        job_code=$(echo "$line" | sed -e 's/  # mapreduce job: .*//')
+        action-set job.$action_id="$job_code"
+    fi
+done
