@@ -294,7 +294,7 @@ class Spark(object):
         events_dir = 'file://{}'.format(dc.path('spark_events'))
         if unitdata.kv().get('hdfs.available', False):
             prefix = dc.path('log_prefix')
-            events_dir = dc.path('log_prefix')
+            events_dir = dc.path('spark_events')
             events_dir = 'hdfs:///{}'.format(events_dir.replace(prefix, ''))
 
         # update spark-defaults
