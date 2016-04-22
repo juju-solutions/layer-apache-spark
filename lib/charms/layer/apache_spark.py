@@ -56,10 +56,13 @@ class Spark(object):
             env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
 
         # create hdfs storage space for history server
-        utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
-                     self.dist_config.path('spark_events'))
+        dc = self.dist_config
+        prefix = dc.path('log_prefix')
+        events_dir = dc.path('spark_events')
+        events_dir = 'hdfs:///{}'.format(events_dir.replace(prefix, ''))
+        utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p', events_dir)
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
-                     self.dist_config.path('spark_events'))
+                     events_dir)
 
         # create hdfs storage space for spark-bench
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
