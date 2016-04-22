@@ -32,7 +32,6 @@ class TestScaleStandalone(unittest.TestCase):
         spark0_unit = self.d.sentry['sparkscale'][0]
         spark1_unit = self.d.sentry['sparkscale'][1]
         spark2_unit = self.d.sentry['sparkscale'][2]
-        ip0 = spark0_unit.info['public-address']
         ip1 = spark1_unit.info['public-address']
         ip2 = spark2_unit.info['public-address']
         (stdout0, errcode0) = spark0_unit.run('grep MASTER /etc/environment')
@@ -64,7 +63,7 @@ class TestScaleStandalone(unittest.TestCase):
         # ensure units agree on the master
         assert stdout1 == stdout2
         assert ip1 in stdout1 or ip2 in stdout2
-          
+
 
 if __name__ == '__main__':
     unittest.main()

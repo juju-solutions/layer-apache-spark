@@ -13,12 +13,16 @@ options:
         path: '/usr/lib/spark'
       spark_conf:
         path: '/etc/spark/conf'
+      log_prefix:
+        path: '/var/log'
       spark_logs:
-        path: '/var/log/spark'
+        path: '{dirs[log_prefix]}/spark'
         owner: 'ubuntu'
         group: 'hadoop'
       spark_events:
-        path: '/spark-history/tmp'
+        # If HDFS is available, the log_prefix portion will be
+        # removed, and the events stored in hdfs:///spark/events
+        path: '{dirs[log_prefix]}/spark/events'
         owner: 'ubuntu'
         group: 'hadoop'
       spark_work:
