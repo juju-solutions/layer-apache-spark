@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+
+if ! charms.reactive is_state 'spark.started'; then
+    action-fail 'Spark not yet ready'
+    exit
+fi
+
+py_files="$(action-get py-files)"
+packages="$(action-get packages)"
+extra_params="$(action-get extra-params)"
+class="$(action-get class)"
+job="$(action-get job)"
+job_args="$(action-get job-args)"
+cron="$(action-get cron)"
+
+submit_args='--master ${MASTER} --deploy-mode cluster'
+if [[ -n "$packages" ]]; then
+    submit_args="$submit_args --packages $packages"
+fi
+if [[ -n "$py_files" ]]; then
+    submit_args="$submit_args --py-files $py_files"
+fi
+if [[ -n "$extra_params" ]]; then
+    submit_args="$submit_args $extra_params"
+fi
+if [[ -n "$class" ]]; then
+    submit_args="$submit_args --class $class"
+fi
+submit_args="$submit_args $job"
+
+job_code=". /etc/environment ; spark-submit ${submit_args} ${job_args}"
+action-set job-code="$job_code"
+
+if [[ -z "$cron" ]]; then
+    su ubuntu -c "$job_code"
+else
+    juju-log "Scheduling job with ID $JUJU_ACTION_UUID"
+    action-set action-id="$JUJU_ACTION_UUID"
+    job_line="$cron $job_code # $JUJU_ACTION_UUID"
+    crontab -lu ubuntu > /dev/null || echo -n | crontab -u ubuntu -
+    (crontab -lu ubuntu; echo "$job_line") | crontab -u ubuntu -
+fi
