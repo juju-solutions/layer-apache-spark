@@ -56,10 +56,13 @@ class Spark(object):
             env['SPARK_JAR'] = "hdfs:///user/ubuntu/share/lib/spark-assembly.jar"
 
         # create hdfs storage space for history server
-        utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
-                     self.dist_config.path('spark_events'))
+        dc = self.dist_config
+        prefix = dc.path('log_prefix')
+        events_dir = dc.path('spark_events')
+        events_dir = 'hdfs:///{}'.format(events_dir.replace(prefix, ''))
+        utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p', events_dir)
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
-                     self.dist_config.path('spark_events'))
+                     events_dir)
 
         # create hdfs storage space for spark-bench
         utils.run_as('hdfs', 'hdfs', 'dfs', '-mkdir', '-p',
@@ -73,8 +76,6 @@ class Spark(object):
         hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
-            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
-            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir hdfs://{}'.format(self.dist_config.path('spark_events')),
             r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
         }, append_non_matches=True)
 
@@ -85,14 +86,12 @@ class Spark(object):
         # put the spark jar in hdfs
         with utils.environment_edit_in_place('/etc/environment') as env:
             env['SPARK_JAR'] = glob('{}/lib/spark-assembly-*.jar'.format(
-                                  self.dist_config.path('spark')))[0]
+                                    self.dist_config.path('spark')))[0]
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
-            r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
-            r'.*spark.eventLog.dir .*': '# spark.eventLog.dir hdfs:///user/ubuntu/directory',
             r'.*spark.driver.extraClassPath .*': '# spark.driver.extraClassPath none',
         }, append_non_matches=True)
 
@@ -147,10 +146,20 @@ class Spark(object):
             (self.dist_config.path('spark_conf') / 'spark-defaults.conf.template').copy(spark_default)
         spark_log4j = self.dist_config.path('spark_conf') / 'log4j.properties'
         if not spark_log4j.exists():
-            (self.dist_config.path('spark_conf') / 'log4j.properties.template').copy(spark_log4j)
-        utils.re_edit_in_place(spark_log4j, {
-            r'log4j.rootCategory=INFO, console': 'log4j.rootCategory=ERROR, console',
-        })
+            spark_log4j.write_lines([
+                "log4j.rootLogger=INFO, rolling",
+                "",
+                "log4j.appender.rolling=org.apache.log4j.RollingFileAppender",
+                "log4j.appender.rolling.layout=org.apache.log4j.PatternLayout",
+                "log4j.appender.rolling.layout.conversionPattern=[%d] %p %m (%c)%n",
+                "log4j.appender.rolling.maxFileSize=50MB",
+                "log4j.appender.rolling.maxBackupIndex=5",
+                "log4j.appender.rolling.file=/var/log/spark/spark.log",
+                "log4j.appender.rolling.encoding=UTF-8",
+                "",
+                "log4j.logger.org.apache.spark=WARN",
+                "log4j.logger.org.eclipse.jetty=WARN",
+            ])
 
     def install_demo(self):
         '''
@@ -243,6 +252,7 @@ class Spark(object):
         '''
         Configure spark environment for all users
         '''
+        dc = self.dist_config
         spark_home = self.dist_config.path('spark')
         spark_bin = spark_home / 'bin'
 
@@ -284,21 +294,21 @@ class Spark(object):
             env['SPARK_EXECUTOR_MEMORY'] = executor_mem
             env['SPARK_HOME'] = spark_home
 
+        events_dir = 'file://{}'.format(dc.path('spark_events'))
+        if unitdata.kv().get('hdfs.available', False):
+            prefix = dc.path('log_prefix')
+            events_dir = dc.path('spark_events')
+            events_dir = 'hdfs:///{}'.format(events_dir.replace(prefix, ''))
+
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
             r'.*spark.eventLog.enabled .*': 'spark.eventLog.enabled true',
+            r'.*spark.history.fs.logDirectory .*': 'spark.history.fs.logDirectory {}'.format(
+                events_dir),
+            r'.*spark.eventLog.dir .*': 'spark.eventLog.dir {}'.format(events_dir),
         }, append_non_matches=True)
-
-        # If hdfs is not available the event logs should go to a local dir
-        if not unitdata.kv().get('hdfs.available', False):
-            spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-            utils.re_edit_in_place(spark_conf, {
-                r'.*spark.eventLog.dir .*': 'spark.eventLog.dir file://{}'
-                                            .format(self.dist_config.path('spark_events')),
-            }, append_non_matches=True)
-
 
         # update spark-env
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
@@ -365,11 +375,7 @@ class Spark(object):
         # stop services (if they're running) to pick up any config change
         self.stop()
         # always start the history server, start master/worker if we're standalone
-        history_server_event_logs = 'file://{}'.format(self.dist_config.path('spark_events'))
-        if unitdata.kv().get('hdfs.available', False):
-            history_server_event_logs = 'hdfs://{}'.format(self.dist_config.path('spark_events'))
-
-        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home), history_server_event_logs)
+        utils.run_as('ubuntu', '{}/sbin/start-history-server.sh'.format(spark_home))
         if hookenv.config()['spark_execution_mode'] == 'standalone':
             utils.run_as('ubuntu', '{}/sbin/start-master.sh'.format(spark_home))
             utils.run_as('ubuntu', '{}/sbin/start-slave.sh'.format(spark_home), self.get_master())
