@@ -16,6 +16,7 @@ class Spark(object):
     def __init__(self, dist_config):
         self.dist_config = dist_config
         self.resources = {
+            'spark-1.6.0-hadoop2.6.0': 'spark-1.6.0-hadoop2.6.0',
             'spark-1.6.1-hadoop2.6.0': 'spark-1.6.1-hadoop2.6.0',
         }
 
@@ -57,6 +58,10 @@ class Spark(object):
         for i in self.resources.keys():
             l.append(i.replace('spark-', ''))
         return l
+
+    def get_current_version(self):
+        current_version = unitdata.kv().get('spark.version')
+        return current_version
 
     def switch_version(self, to_version):
         spark_resource = 'spark-{}'.format(to_version)

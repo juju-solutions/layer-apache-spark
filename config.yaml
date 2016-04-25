@@ -52,11 +52,19 @@ options:
             "yarn-cluster". Consult the readme for details on these options.
     spark_version:
         type: string
-        default: '1.6.1-hadoop2.6.0'
+        default: '1.6.0-hadoop2.6.0'
         description: |
-            Version of Apache Spark to be deploied.
-    maintainance_mode:
+            Version of Apache Spark to be deployed.
+    maintenance_mode:
         type: boolean
         default: false
         description: |
-            Enter maintainance mode to upgrade Spark.
+            Enter maintenance mode to upgrade Spark.
+    upgrade_immediately:
+        type: boolean
+        default: true
+        description: |
+            When set to 'true', upgrade of instances will commence immediately after the new spark version
+            is specified by 'spark_version' config variable. If 'upgrade_immediately' is set to 'false'
+            the upgrade process is triggered by the 'upgrade-spark' action.
+

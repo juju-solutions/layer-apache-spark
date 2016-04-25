@@ -86,7 +86,7 @@ def switch_to_yarn(hadoop):
 
 def upgrade_spark():
     if is_state('not.upgrading'):
-        return (False, "Please enter maintainance mode before triggering the upgrade.")
+        return (False, "Please enter maintenance mode before triggering the upgrade.")
 
     version = hookenv.config()['spark_version']
     hookenv.status_set('maintenance', 'Upgrading to {}'.format(version))
@@ -97,18 +97,22 @@ def upgrade_spark():
     except:
         hookenv.status_set('blocked', 'Upgrade failed.')
         raise
-    hookenv.status_set('maintenance', 'Upgrade complete. You can exit maintainance mode')
+    hookenv.status_set('maintenance', 'Upgrade complete. You can exit maintenance mode')
     return (True, "ok")
 
 
 @when('spark.started', 'config.changed')
 def reconfigure_spark():
-    maintainance = hookenv.config()['maintainance_mode']
-    if maintainance:
+    config = hookenv.config()
+    maintenance = config['maintenance_mode']
+    if maintenance:
         remove_state('not.upgrading')
         spark = Spark(get_dist_config())
         report_status(spark)
         spark.stop()
+        current_version = spark.get_current_version()
+        if config['upgrade_immediately'] and config['spark_version'] != current_version:
+            upgrade_spark()
         return
     else:
         set_state('not.upgrading')
