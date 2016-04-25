@@ -54,7 +54,10 @@ class Spark(object):
         return spark_path
 
     def get_spark_versions(self):
-        return list(self.resources.keys())
+        l = []
+        for i in self.resources.keys():
+            l.append(i.replace('spark-', ''))
+        return l
 
     def switch_version(self, to_version):
         spark_resource = 'spark-{}'.format(to_version)
