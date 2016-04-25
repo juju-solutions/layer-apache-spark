@@ -1,4 +1,3 @@
-import shutil
 import os
 from glob import glob
 from path import Path

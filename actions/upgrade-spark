@@ -19,4 +19,8 @@ if not charm_ready:
     call(['action-fail', 'Spark service not yet ready'])
     sys.exit(1)
 
-upgrade_spark()
+success, msg = upgrade_spark()
+if not success:
+    call(['action-fail', msg])
+    sys.exit(1)
+
