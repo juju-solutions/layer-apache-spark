@@ -36,7 +36,7 @@ list-spark-versions:
 submit:
     description: Submit a job to Spark.
     required: ['job']
-    params:s
+    params:
         job:
             description: >
                 URL to a JAR or Python file.  This can be any URL supported by
