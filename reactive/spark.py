@@ -2,7 +2,7 @@
 from charms.reactive import when, when_not
 from charms.reactive import set_state, remove_state, is_state
 from charmhelpers.core import hookenv
-from charms.layer.apache_spark import Spark
+from charms.layer.apache_spark import Spark, ResourceError
 from charms.layer.hadoop_client import get_dist_config
 from charms.reactive.helpers import data_changed
 
@@ -27,7 +27,10 @@ def install_spark():
     dist = get_dist_config()
     spark = Spark(dist)
     hookenv.status_set('maintenance', 'Installing Apache Spark')
-    spark.install()
+    try:
+        spark.install()
+    except ResourceError:
+        return  # download failed; status will be set by verify_resources
     spark.setup_spark_config()
     spark.install_demo()
     set_state('spark.installed')
@@ -94,9 +97,8 @@ def upgrade_spark():
     try:
         spark = Spark(get_dist_config())
         spark.switch_version(version)
-    except:
-        hookenv.status_set('blocked', 'Upgrade failed.')
-        raise
+    except ResourceError:
+        return (False, "Download failed")
     hookenv.status_set('maintenance', 'Upgrade complete. You can exit maintenance mode')
     return (True, "ok")
 

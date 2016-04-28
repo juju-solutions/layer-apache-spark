@@ -11,6 +11,10 @@ from charmhelpers.fetch.archiveurl import ArchiveUrlFetchHandler
 from jujubigdata import utils
 
 
+class ResourceError(Exception):
+    pass
+
+
 # Main Spark class for callbacks
 class Spark(object):
     def __init__(self, dist_config):
@@ -40,8 +44,8 @@ class Spark(object):
     def extract_spark_binary(self, resource_key, version):
         spark_path = "{}-{}".format(self.dist_config.path('spark'), version)
         resource = self.resources[resource_key]
-        rs = utils.verify_resources(*[self.resources[resource_key]])
-        rs()
+        if not utils.verify_resources(*[self.resources[resource_key]])():
+            raise ResourceError()
         jujuresources.install(resource,
                               destination=spark_path,
                               skip_top_level=True)
