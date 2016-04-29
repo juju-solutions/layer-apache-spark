@@ -20,8 +20,8 @@ class Spark(object):
     def __init__(self, dist_config):
         self.dist_config = dist_config
         self.resources = {
-            'spark-1.6.0-hadoop2.6.0': 'spark-1.6.0-hadoop2.6.0',
             'spark-1.6.1-hadoop2.6.0': 'spark-1.6.1-hadoop2.6.0',
+            'spark-1.6.1': 'spark-1.6.1',
         }
 
     def install(self):
@@ -126,6 +126,14 @@ class Spark(object):
                      '/user/ubuntu/spark-bench')
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
                      '/user/ubuntu/spark-bench')
+
+        # ensure user-provided Hadoop works
+        hadoop_classpath = utils.run_as('hdfs', 'hadoop', 'classpath',
+                                        capture_output=True)
+        spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
+        utils.re_edit_in_place(spark_env, {
+            r'.*SPARK_DIST_CLASSPATH.*': 'SPARK_DIST_CLASSPATH={}'.format(hadoop_classpath),
+        }, append_non_matches=True)
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
