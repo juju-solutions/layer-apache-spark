@@ -45,7 +45,7 @@ class Spark(object):
         spark_path = "{}-{}".format(self.dist_config.path('spark'), version)
         resource = self.resources[resource_key]
         if not utils.verify_resources(*[self.resources[resource_key]])():
-            raise ResourceError()
+            raise ResourceError("Failed to fetch Spark {} binary".format(version))
         jujuresources.install(resource,
                               destination=spark_path,
                               skip_top_level=True)
@@ -70,7 +70,7 @@ class Spark(object):
     def switch_version(self, to_version):
         spark_resource = 'spark-{}'.format(to_version)
         if not (spark_resource in self.resources):
-            raise Exception("No resource for spark version {}".format(to_version))
+            raise ResourceError("No resource for spark version {}".format(to_version))
 
         unitdata.kv().set('spark.upgrading', True)
         unitdata.kv().flush(True)

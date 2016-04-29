@@ -29,8 +29,9 @@ def install_spark():
     hookenv.status_set('maintenance', 'Installing Apache Spark')
     try:
         spark.install()
-    except ResourceError:
-        return  # download failed; status will be set by verify_resources
+    except ResourceError as e:
+        hookenv.status_set('blocked', str(e))
+        return
     spark.setup_spark_config()
     spark.install_demo()
     set_state('spark.installed')

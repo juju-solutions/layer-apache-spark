@@ -2,13 +2,8 @@
 import sys
 sys.path.append('lib')
 
-from charms.layer.apache_spark import Spark
-from charms.layer.hadoop_client import get_dist_config
-
 try:
-    from charmhelpers.core import host
     from charmhelpers.core import hookenv
-    from charmhelpers.core import unitdata
     charm_ready = True
 except ImportError:
     charm_ready = False
@@ -19,6 +14,11 @@ if not charm_ready:
     call(['action-fail', 'Spark service not yet ready'])
     sys.exit(1)
 
+import yaml
+
+from charms.layer.apache_spark import Spark
+from charms.layer.hadoop_client import get_dist_config
+
 spark = Spark(get_dist_config())
 list = spark.get_spark_versions()
-hookenv.action_set({'versions': list})
+hookenv.action_set({'versions': yaml.dump(list)})

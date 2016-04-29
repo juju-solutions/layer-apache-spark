@@ -28,11 +28,11 @@ processing. Key features:
 
 This charm allows the deployment of Apache Spark in the modes described below:
 
- * **Standalone
+ * **Standalone**
 
  In this mode Spark units form a cluster that you can scale to match your needs.
  Starting with a single node:
- 
+
     juju deploy apache-spark spark
 
  You can scale the cluster by adding more spark units:
@@ -45,9 +45,9 @@ This charm allows the deployment of Apache Spark in the modes described below:
  In case you remove the master unit Juju will appoint a new master to the cluster.
  However, should a master fail in this standalone mode the cluster will stop functioning
  properly. Master node failures is handled properly when Apache spark is setup in
- High Availability mode (Standalone HA). 
+ High Availability mode (Standalone HA).
 
- * **Standalone HA
+ * **Standalone HA**
 
  To enable High Availability properties of a cluster you need to add a relation
  between spark and a zookeeper deployment. The suggested deployment method is to use the
@@ -62,8 +62,8 @@ This charm allows the deployment of Apache Spark in the modes described below:
     juju ssh zk/0
     zkCli.sh
     get /spark/master_status
- 
- * **Yarn-client and Yarn-cluster
+
+ * **Yarn-client and Yarn-cluster**
 
  This charm leverages our pluggable Hadoop model with the `hadoop-plugin`
  interface. This means that you can relate this charm to a base Apache Hadoop cluster
@@ -112,7 +112,7 @@ Deploy Apache Zeppelin and relate it to the Spark unit:
     juju add-relation spark zeppelin
 
 Once the relation has been made, access the web interface at
-http://{spark_unit_ip_address}:9090
+`http://{spark_unit_ip_address}:9090`
 
   * **IPyNotebook for Spark**
 
@@ -124,7 +124,7 @@ Deploy IPython Notebook for Spark and relate it to the Spark unit:
     juju add-relation spark notebook
 
 Once the relation has been made, access the web interface at
-http://{spark_unit_ip_address}:8880
+`http://{spark_unit_ip_address}:8880`
 
 
 ## Upgrading Spark Charm
@@ -138,40 +138,33 @@ This will fetch any available upgrades. You can query for the available versions
 
     juju action do spark/0 list-spark-versions
 
-Next you need to enter the maintenance modes
-where spark is sitting idle for the upgrade to start:
-
-    juju set spark maintenance_mode=true
-
-Set the target spark version (any new units added will be using that spark version):
+Set the target spark version:
 
     juju set spark spark_version=<new_version>
 
-The upgrade process will start immediately. If you would like to trigger the upgrade process
-manually per spark unit you should make sure you have set the 'upgrade_immediately'
-flag to false.
-
-    juju set spark upgrade_immediately=false
-
-And then you can call the action:
+The status of the service will change to report that an upgrade is pending,
+and any new units added to the cluster will deploy the new version, but
+note that existing units will not be upgraded automatically.  Instead, you
+must run the `upgrade-spark` action on each existing unit to upgrade it:
 
     juju action do spark/0 upgrade-spark
 
-Finally at the end of the upgrade you should exit the maintenance mode:
+If you wish to upgrade all (or a group of) units at once, simply submit the
+action against them using a loop, e.g.:
 
-    juju set spark maintenance_mode=false
+    for i in {0..3}; do juju action do spark/$i upgrade-spark; done
 
 
 ## Configuration
 
-### driver_memory
- 
+### `driver_memory`
+
 Amount of memory Spark will request for the Master. Specify gigabytes (e.g.
 1g) or megabytes (e.g. 1024m). If running in `local` or `standalone` mode, you
 may also specify a percentage of total system memory (e.g. 50%).
 
-### executor_memory
- 
+### `executor_memory`
+
 Amount of memory Spark will request for each executor. Specify gigabytes (e.g.
 1g) or megabytes (e.g. 1024m). If running in `local` or `standalone` mode, you
 may also specify a percentage of total system memory (e.g. 50%). Take care
@@ -179,14 +172,14 @@ when specifying percentages in local modes, as this value is for *each*
 executor. Your Spark job will fail if, for example, you set this value > 50%
 and attempt to run 2 or more executors.
 
-### spark_bench_enabled
- 
+### `spark_bench_enabled`
+
 Install the SparkBench benchmarking suite. If `true` (the default), this charm
 will download spark bench from the URL specified by `spark_bench_ppc64le`
 or `spark_bench_x86_64`, depending on the unit's architecture.
 
-### spark-execution-mode
- 
+### `spark-execution-mode`
+
 Spark has four modes of execution: local, standalone, yarn-client, and
 yarn-cluster. The default mode is `yarn-client` and can be changed by setting
 the `spark_execution_mode` config variable.
@@ -260,10 +253,10 @@ via:
 
 
 ### Verify Job History
- 
+
 The Job History server shows all active and finished spark jobs submitted.
 To view the Job History server you need to expose spark (`juju expose spark`)
-and navigate to http://{spark_master_unit_ip_address}:18080 of the
+and navigate to `http://{spark_master_unit_ip_address}:18080` of the
 unit acting as master.
 
 
