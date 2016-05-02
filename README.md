@@ -138,21 +138,28 @@ This will fetch any available upgrades. You can query for the available versions
 
     juju action do spark/0 list-spark-versions
 
-Set the target spark version:
+Next you need to enter the maintenance modes
+where spark is sitting idle for the upgrade to start:
+
+    juju set spark maintenance_mode=true
+
+Set the target spark version (any new units added will be using that spark version):
 
     juju set spark spark_version=<new_version>
 
-The status of the service will change to report that an upgrade is pending,
-and any new units added to the cluster will deploy the new version, but
-note that existing units will not be upgraded automatically.  Instead, you
-must run the `upgrade-spark` action on each existing unit to upgrade it:
+The upgrade process will start immediately. If you would like to trigger the upgrade process
+manually per spark unit you should make sure you have set the `upgrade_immediately`
+flag to false.
+
+    juju set spark upgrade_immediately=false
+
+And then you can call the action:
 
     juju action do spark/0 upgrade-spark
 
-If you wish to upgrade all (or a group of) units at once, simply submit the
-action against them using a loop, e.g.:
+Finally at the end of the upgrade you should exit the maintenance mode:
 
-    for i in {0..3}; do juju action do spark/$i upgrade-spark; done
+    juju set spark maintenance_mode=false
 
 
 ## Configuration
