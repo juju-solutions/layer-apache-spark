@@ -1,3 +1,4 @@
+import os
 from glob import glob
 from path import Path
 from subprocess import CalledProcessError
@@ -10,24 +11,24 @@ from charmhelpers.fetch.archiveurl import ArchiveUrlFetchHandler
 from jujubigdata import utils
 
 
+class ResourceError(Exception):
+    pass
+
+
 # Main Spark class for callbacks
 class Spark(object):
     def __init__(self, dist_config):
         self.dist_config = dist_config
         self.resources = {
-            'spark': 'spark-noarch',
+            'spark-1.6.1-hadoop2.6.0': 'spark-1.6.1-hadoop2.6.0',
+            'spark-1.6.1': 'spark-1.6.1',
         }
-        self.verify_resources = utils.verify_resources(*self.resources.values())
 
-    def is_installed(self):
-        return unitdata.kv().get('spark.installed')
-
-    def install(self, force=False):
-        if not force and self.is_installed():
-            return
-        jujuresources.install(self.resources['spark'],
-                              destination=self.dist_config.path('spark'),
-                              skip_top_level=True)
+    def install(self):
+        version = hookenv.config()['spark_version']
+        spark_path = self.extract_spark_binary('spark-{}'.format(version), version)
+        os.symlink(spark_path, self.dist_config.path('spark'))
+        unitdata.kv().set('spark.version', version)
 
         self.dist_config.add_users()
         self.dist_config.add_dirs()
@@ -39,6 +40,62 @@ class Spark(object):
 
         unitdata.kv().set('spark.installed', True)
         unitdata.kv().flush(True)
+
+    def extract_spark_binary(self, resource_key, version):
+        spark_path = "{}-{}".format(self.dist_config.path('spark'), version)
+        resource = self.resources[resource_key]
+        if not utils.verify_resources(*[self.resources[resource_key]])():
+            raise ResourceError("Failed to fetch Spark {} binary".format(version))
+        jujuresources.install(resource,
+                              destination=spark_path,
+                              skip_top_level=True)
+
+        default_conf = Path("{}/conf".format(spark_path))
+        spark_conf_orig = Path("{}/conf.orig".format(spark_path))
+        spark_conf_orig.rmtree_p()
+        default_conf.copytree(spark_conf_orig)
+
+        return spark_path
+
+    def get_spark_versions(self):
+        l = []
+        for i in self.resources.keys():
+            l.append(i.replace('spark-', ''))
+        return l
+
+    def get_current_version(self):
+        current_version = unitdata.kv().get('spark.version')
+        return current_version
+
+    def switch_version(self, to_version):
+        spark_resource = 'spark-{}'.format(to_version)
+        if not (spark_resource in self.resources):
+            raise ResourceError("No resource for spark version {}".format(to_version))
+
+        unitdata.kv().set('spark.upgrading', True)
+        unitdata.kv().flush(True)
+        self.stop()
+        new_spark_path = self.extract_spark_binary(self.resources[spark_resource], to_version)
+        os.unlink(self.dist_config.path('spark'))
+        os.symlink(new_spark_path, self.dist_config.path('spark'))
+        self.setup_spark_config()
+        prev_version = unitdata.kv().get('spark.version', '')
+        unitdata.kv().set('spark.previous-version', prev_version)
+        unitdata.kv().set('spark.version', to_version)
+
+        if unitdata.kv().get('zookeepers.available', False):
+            zk_units = unitdata.kv().get('zookeeper.units', '')
+            self.configure_ha(zk_units)
+        if unitdata.kv().get('hdfs.available', False):
+            self.configure_yarn()
+
+        self.configure()
+        unitdata.kv().set('spark.upgrading', False)
+        unitdata.kv().flush(True)
+        self.start()
+
+    def upgrading(self):
+        return unitdata.kv().get('spark.upgrading', False)
 
     def configure_yarn_mode(self):
         # put the spark jar in hdfs
@@ -70,6 +127,14 @@ class Spark(object):
         utils.run_as('hdfs', 'hdfs', 'dfs', '-chown', '-R', 'ubuntu:hadoop',
                      '/user/ubuntu/spark-bench')
 
+        # ensure user-provided Hadoop works
+        hadoop_classpath = utils.run_as('hdfs', 'hadoop', 'classpath',
+                                        capture_output=True)
+        spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
+        utils.re_edit_in_place(spark_env, {
+            r'.*SPARK_DIST_CLASSPATH.*': 'SPARK_DIST_CLASSPATH={}'.format(hadoop_classpath),
+        }, append_non_matches=True)
+
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         etc_env = utils.read_etc_env()
@@ -99,6 +164,7 @@ class Spark(object):
         unitdata.kv().flush(True)
 
     def configure_ha(self, zk_units):
+        unitdata.kv().set('zookeeper.units', zk_units)
         zks = []
         for unit in zk_units:
             ip = utils.resolve_private_address(unit['host'])
@@ -130,14 +196,17 @@ class Spark(object):
         copy the default configuration files to spark_conf property
         defined in dist.yaml
         '''
-        default_conf = self.dist_config.path('spark') / 'conf'
+        default_conf = self.dist_config.path('spark') / 'conf.orig'
         spark_conf = self.dist_config.path('spark_conf')
         spark_conf.rmtree_p()
         default_conf.copytree(spark_conf)
         # Now remove the conf included in the tarball and symlink our real conf
-        default_conf.rmtree_p()
-        spark_conf.symlink(default_conf)
-
+        target_conf = self.dist_config.path('spark') / 'conf'
+        if target_conf.islink():
+            target_conf.unlink()
+        else:
+            target_conf.rmtree_p()
+        spark_conf.symlink(target_conf)
         spark_env = self.dist_config.path('spark_conf') / 'spark-env.sh'
         if not spark_env.exists():
             (self.dist_config.path('spark_conf') / 'spark-env.sh.template').copy(spark_env)
@@ -371,6 +440,9 @@ class Spark(object):
             hookenv.close_port(port)
 
     def start(self):
+        if unitdata.kv().get('spark.uprading', False):
+            return
+
         spark_home = self.dist_config.path('spark')
         # stop services (if they're running) to pick up any config change
         self.stop()

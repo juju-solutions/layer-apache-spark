@@ -2,7 +2,7 @@
 from charms.reactive import when, when_not
 from charms.reactive import set_state, remove_state, is_state
 from charmhelpers.core import hookenv
-from charms.layer.apache_spark import Spark
+from charms.layer.apache_spark import Spark, ResourceError
 from charms.layer.hadoop_client import get_dist_config
 from charms.reactive.helpers import data_changed
 
@@ -26,15 +26,19 @@ from charms.reactive.helpers import data_changed
 def install_spark():
     dist = get_dist_config()
     spark = Spark(dist)
-    if spark.verify_resources():
-        hookenv.status_set('maintenance', 'Installing Apache Spark')
+    hookenv.status_set('maintenance', 'Installing Apache Spark')
+    try:
         spark.install()
-        spark.setup_spark_config()
-        spark.install_demo()
-        set_state('spark.installed')
+    except ResourceError as e:
+        hookenv.status_set('blocked', str(e))
+        return
+    spark.setup_spark_config()
+    spark.install_demo()
+    set_state('spark.installed')
+    set_state('not.upgrading')
 
 
-@when('spark.installed')
+@when('spark.installed', 'not.upgrading')
 @when_not('spark.started')
 def start_spark():
     hookenv.status_set('maintenance', 'Setting up Apache Spark')
@@ -47,6 +51,10 @@ def start_spark():
 
 
 def report_status(spark):
+    if not is_state('not.upgrading'):
+        hookenv.status_set('maintenance', 'Preparing for an upgrade')
+        return
+
     mode = hookenv.config()['spark_execution_mode']
     if (not is_state('yarn.configured')) and mode.startswith('yarn'):
         hookenv.status_set('blocked',
@@ -62,7 +70,7 @@ def report_status(spark):
     hookenv.status_set('active', 'Ready ({})'.format(mode))
 
 
-@when('spark.installed', 'hadoop.ready')
+@when('spark.installed', 'hadoop.ready', 'not.upgrading')
 @when_not('yarn.configured')
 def switch_to_yarn(hadoop):
     '''
@@ -80,8 +88,38 @@ def switch_to_yarn(hadoop):
         report_status(spark)
 
 
+def upgrade_spark():
+    if is_state('not.upgrading'):
+        return (False, "Please enter maintenance mode before triggering the upgrade.")
+
+    version = hookenv.config()['spark_version']
+    hookenv.status_set('maintenance', 'Upgrading to {}'.format(version))
+    hookenv.log("Upgrading to {}".format(version))
+    try:
+        spark = Spark(get_dist_config())
+        spark.switch_version(version)
+    except ResourceError:
+        return (False, "Download failed")
+    hookenv.status_set('maintenance', 'Upgrade complete. You can exit maintenance mode')
+    return (True, "ok")
+
+
 @when('spark.started', 'config.changed')
 def reconfigure_spark():
+    config = hookenv.config()
+    maintenance = config['maintenance_mode']
+    if maintenance:
+        remove_state('not.upgrading')
+        spark = Spark(get_dist_config())
+        report_status(spark)
+        spark.stop()
+        current_version = spark.get_current_version()
+        if config['upgrade_immediately'] and config['spark_version'] != current_version:
+            upgrade_spark()
+        return
+    else:
+        set_state('not.upgrading')
+
     mode = hookenv.config()['spark_execution_mode']
     hookenv.status_set('maintenance', 'Configuring Apache Spark')
     spark = Spark(get_dist_config())
@@ -103,7 +141,7 @@ def reconfigure_spark():
     report_status(spark)
 
 
-@when('spark.started', 'yarn.configured')
+@when('spark.started', 'yarn.configured', 'not.upgrading')
 @when_not('hadoop.ready')
 def disable_yarn():
     hookenv.status_set('maintenance', 'Disconnecting Apache Spark from YARN')
@@ -115,14 +153,14 @@ def disable_yarn():
     report_status(spark)
 
 
-@when('spark.installed', 'sparkpeers.joined')
+@when('spark.installed', 'sparkpeers.joined', 'not.upgrading')
 def peers_update(sprkpeer):
     nodes = sprkpeer.get_nodes()
     nodes.append((hookenv.local_unit(), hookenv.unit_private_ip()))
     update_peers_config(nodes)
 
 
-@when('spark.installed')
+@when('spark.installed', 'not.upgrading')
 @when_not('sparkpeers.joined')
 def no_peers_update():
     nodes = [(hookenv.local_unit(), hookenv.unit_private_ip())]
@@ -143,7 +181,7 @@ def update_peers_config(nodes):
             report_status(spark)
 
 
-@when('spark.installed', 'zookeeper.ready')
+@when('spark.installed', 'zookeeper.ready', 'not.upgrading')
 def configure_zookeepers(zk):
     zks = zk.zookeepers()
     if data_changed('available.zookeepers', zks):
@@ -157,10 +195,11 @@ def configure_zookeepers(zk):
         report_status(spark)
 
 
-@when('spark.installed', 'zookeeper.configured')
+@when('spark.installed', 'zookeeper.configured', 'not.upgrading')
 @when_not('zookeeper.ready')
 def disable_zookeepers():
     hookenv.status_set('maintenance', 'Disabling high availability')
+    data_changed('available.zookeepers', None)
     spark = Spark(get_dist_config())
     spark.stop()
     spark.disable_ha()
@@ -181,7 +220,7 @@ def client_should_stop(client):
     client.clear_spark_started()
 
 
-@when('benchmark.joined')
+@when('benchmark.joined', 'not.upgrading')
 def register_benchmarks(benchmark):
     benchmarks = ['sparkpi']
     if hookenv.config('spark_bench_enabled'):
