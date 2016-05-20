@@ -29,8 +29,6 @@ start-spark-job-history-server:
     description: Start the Spark job history server.
 stop-spark-job-history-server:
     description: Stop the Spark job history server.
-upgrade-spark:
-    description: Upgrade to a specific spark version.
 list-spark-versions:
     description: Get a list of availbale spark versions.
 submit:
