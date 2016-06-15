@@ -90,7 +90,6 @@ def switch_to_yarn(hadoop):
 
 @when('spark.started', 'config.changed')
 def reconfigure_spark():
-    config = hookenv.config()
     set_state('not.upgrading')
 
     mode = hookenv.config()['spark_execution_mode']
