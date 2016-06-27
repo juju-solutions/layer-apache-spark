@@ -6,6 +6,9 @@ description: |
 
   Learn more at http://spark.apache.org.
 tags: ["bigdata", "hadoop", "apache"]
+series:
+  - trusty
+  - xenial
 provides:
   benchmark:
     interface: benchmark
@@ -17,4 +20,3 @@ requires:
 peers:
   sparkpeers:
     interface: spark-quorum
-
