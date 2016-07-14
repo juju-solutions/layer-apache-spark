@@ -145,10 +145,8 @@ class Spark(object):
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         etc_env = utils.read_etc_env()
-        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
-            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
         }, append_non_matches=True)
 
         unitdata.kv().set('hdfs.available', True)
@@ -164,7 +162,6 @@ class Spark(object):
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
-            r'.*spark.driver.extraClassPath .*': '# spark.driver.extraClassPath none',
         }, append_non_matches=True)
 
         unitdata.kv().set('hdfs.available', False)
@@ -362,6 +359,21 @@ class Spark(object):
         elif mode.startswith('yarn'):
             master = 'yarn-client'
         return master
+
+    def configure_hadoop_libs(self):
+        if unitdata.kv().get('hadoop.extra.installed', False):
+            return
+
+        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+        etc_env = utils.read_etc_env()
+        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        utils.re_edit_in_place(spark_conf, {
+            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
+            r'.*spark.jars .*': 'spark.jars {}'.format(hadoop_extra_classpath),
+        }, append_non_matches=True)
+
+        unitdata.kv().set('hadoop.extra.installed', True)
+        unitdata.kv().flush(True)
 
     def configure(self):
         '''

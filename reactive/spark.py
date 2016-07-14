@@ -76,9 +76,10 @@ def switch_to_yarn(hadoop):
     '''
     In case you first change the config and then connect the plugin.
     '''
+    spark = Spark(get_dist_config())
+    spark.configure_hadoop_libs()
     mode = hookenv.config()['spark_execution_mode']
     if mode.startswith('yarn'):
-        spark = Spark(get_dist_config())
         hookenv.status_set('maintenance', 'Setting up Apache Spark for YARN')
         spark.stop()
         spark.configure_yarn_mode()
