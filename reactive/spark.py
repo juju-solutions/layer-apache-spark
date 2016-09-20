@@ -185,6 +185,8 @@ def disable_zookeepers():
 @when('spark.started', 'client.joined')
 def client_present(client):
     client.set_spark_started()
+    spark = Spark(get_dist_config())
+    client.send_master_info('', spark.get_master())
 
 
 @when('client.joined')
