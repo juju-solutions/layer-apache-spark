@@ -27,7 +27,7 @@ class Spark(object):
 
     def install(self):
         version = hookenv.config()['spark_version']
-        spark_path = self.extract_spark_binary('spark-{}'.format(version), version)
+        spark_path = self.extract_spark_binary(version)
         os.symlink(spark_path, self.dist_config.path('spark'))
         unitdata.kv().set('spark.version', version)
 
@@ -48,19 +48,30 @@ class Spark(object):
         unitdata.kv().set('spark.installed', True)
         unitdata.kv().flush(True)
 
-    def extract_spark_binary(self, resource_key, version):
-        spark_path = "{}-{}".format(self.dist_config.path('spark'), version)
-        resource = self.resources[resource_key]
-        if not utils.verify_resources(*[self.resources[resource_key]])():
-            raise ResourceError("Failed to fetch Spark {} binary".format(version))
-        jujuresources.install(resource,
-                              destination=spark_path,
-                              skip_top_level=True)
+    def extract_spark_binary(self, version):
+        spark_path = Path("{}-{}".format(self.dist_config.path('spark'), version))
+        try:
+            filename = hookenv.resource_get('spark')
+            if not filename:
+                raise ResourceError("unable to fetch spark resource")
+            if Path(filename).size == 0:
+                # work around charm store resource upload issue
+                # by falling-back to pulling from S3
+                raise NotImplementedError()
+            extracted = Path(ArchiveUrlFetchHandler().install('file://' + filename))
+            extracted.dirs()[0].copytree(spark_path)  # only copy nested dir
+        except NotImplementedError:
+            resource = self.resources['spark-{}'.format(version)]
+            if not utils.verify_resources(resource)():
+                raise ResourceError("Failed to fetch Spark {} binary".format(version))
+            jujuresources.install(resource,
+                                  destination=spark_path,
+                                  skip_top_level=True)
 
-        default_conf = Path("{}/conf".format(spark_path))
-        spark_conf_orig = Path("{}/conf.orig".format(spark_path))
+        spark_conf = spark_path / "conf"
+        spark_conf_orig = spark_path / "conf.orig"
         spark_conf_orig.rmtree_p()
-        default_conf.copytree(spark_conf_orig)
+        spark_conf.copytree(spark_conf_orig)
 
         return spark_path
 
@@ -144,7 +155,6 @@ class Spark(object):
 
         # update spark-defaults
         spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-        etc_env = utils.read_etc_env()
         utils.re_edit_in_place(spark_conf, {
             r'.*spark.master .*': 'spark.master {}'.format(self.get_master()),
         }, append_non_matches=True)
@@ -360,20 +370,16 @@ class Spark(object):
             master = 'yarn-client'
         return master
 
-    def configure_hadoop_libs(self):
-        if unitdata.kv().get('hadoop.extra.installed', False):
-            return
-
-        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+    def configure_classpaths(self, client_classpaths=None):
         etc_env = utils.read_etc_env()
-        hadoop_extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        if client_classpaths:
+            extra_classpath += ':' + ':'.join(client_classpaths)
+        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
         utils.re_edit_in_place(spark_conf, {
-            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(hadoop_extra_classpath),
-            r'.*spark.jars .*': 'spark.jars {}'.format(hadoop_extra_classpath),
+            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(extra_classpath),
+            r'.*spark.executor.extraClassPath .*': 'spark.executor.extraClassPath {}'.format(extra_classpath),
         }, append_non_matches=True)
-
-        unitdata.kv().set('hadoop.extra.installed', True)
-        unitdata.kv().flush(True)
 
     def configure(self):
         '''

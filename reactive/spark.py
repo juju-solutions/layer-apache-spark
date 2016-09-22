@@ -77,7 +77,7 @@ def switch_to_yarn(hadoop):
     In case you first change the config and then connect the plugin.
     '''
     spark = Spark(get_dist_config())
-    spark.configure_hadoop_libs()
+    spark.configure_classpaths()
     mode = hookenv.config()['spark_execution_mode']
     if mode.startswith('yarn'):
         hookenv.status_set('maintenance', 'Setting up Apache Spark for YARN')
@@ -186,7 +186,16 @@ def disable_zookeepers():
 def client_present(client):
     client.set_spark_started()
     spark = Spark(get_dist_config())
-    client.send_master_info('', spark.get_master())
+    client.send_master_info(spark.get_master(),
+                            spark.get_master_ip())
+
+
+@when('spark.installed', 'client.classpaths')
+def register_classpaths(client):
+    client_classpaths = client.registered_classpaths()
+    if data_changed('client.classpaths', client_classpaths):
+        spark = Spark(get_dist_config())
+        spark.configure_classpaths(client_classpaths)
 
 
 @when('client.joined')

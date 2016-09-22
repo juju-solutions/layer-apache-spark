@@ -20,3 +20,8 @@ requires:
 peers:
   sparkpeers:
     interface: spark-quorum
+resources:
+  spark:
+    type: file
+    filename: spark.tgz
+    description: The Apache Spark distribution
