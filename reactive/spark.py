@@ -192,10 +192,8 @@ def client_present(client):
 
 @when('spark.installed', 'client.classpaths')
 def register_classpaths(client):
-    client_classpaths = client.registered_classpaths()
-    if data_changed('client.classpaths', client_classpaths):
-        spark = Spark(get_dist_config())
-        spark.configure_classpaths(client_classpaths)
+    spark = Spark(get_dist_config())
+    spark.configure_classpaths(client.registered_classpaths())
 
 
 @when('client.joined')

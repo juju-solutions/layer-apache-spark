@@ -370,16 +370,28 @@ class Spark(object):
             master = 'yarn-client'
         return master
 
-    def configure_classpaths(self, client_classpaths=None):
+    def register_classpaths(self, client_classpaths=None):
+        registered_classpaths = unitdata.kv().get('spark.extra-classpaths', [])
+        additional_classpaths = []
         etc_env = utils.read_etc_env()
-        extra_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        hadoop_classpath = etc_env.get('HADOOP_EXTRA_CLASSPATH', '')
+        if hadoop_classpath:
+            additional_classpaths.extend(hadoop_classpath.split(':'))
         if client_classpaths:
-            extra_classpath += ':' + ':'.join(client_classpaths)
-        spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
-        utils.re_edit_in_place(spark_conf, {
-            r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(extra_classpath),
-            r'.*spark.executor.extraClassPath .*': 'spark.executor.extraClassPath {}'.format(extra_classpath),
-        }, append_non_matches=True)
+            additional_classpaths.extend(client_classpaths)
+        new_cp = False
+        for cp in additional_classpaths:
+            if cp not in registered_classpaths:
+                registered_classpaths.append(cp)
+                new_cp = True
+        if new_cp:
+            spark_conf = self.dist_config.path('spark_conf') / 'spark-defaults.conf'
+            cp_str = ':'.join(registered_classpaths)
+            utils.re_edit_in_place(spark_conf, {
+                r'.*spark.driver.extraClassPath .*': 'spark.driver.extraClassPath {}'.format(cp_str),
+                r'.*spark.executor.extraClassPath .*': 'spark.executor.extraClassPath {}'.format(cp_str),
+            }, append_non_matches=True)
+            unitdata.kv().set('spark.extra-classpaths', registered_classpaths)
 
     def configure(self):
         '''
